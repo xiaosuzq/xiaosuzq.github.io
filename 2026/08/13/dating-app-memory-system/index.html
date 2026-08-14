@@ -7,7 +7,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png">
 <meta property="article:published_time" content="2026-08-13T08:30:00.000Z">
-<meta property="article:modified_time" content="2026-08-14T04:03:30.535Z">
+<meta property="article:modified_time" content="2026-08-14T12:09:32.633Z">
 <meta property="article:author" content="szq">
 <meta property="article:tag" content="AI">
 <meta property="article:tag" content="Mem0">
@@ -20,7 +20,7 @@
   "url": "https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/",
   "image": "https://xiaosuzq.github.io/img/butterfly-icon.png",
   "datePublished": "2026-08-13T08:30:00.000Z",
-  "dateModified": "2026-08-14T04:03:30.535Z",
+  "dateModified": "2026-08-14T12:09:32.633Z",
   "author": [
     {
       "@type": "Person",
@@ -203,7 +203,7 @@
   isHighlightShrink: false,
   isToc: true,
   pageType: 'post'
-}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SZQ 的技术博客</span></a><a class="nav-page-title" href="/"><span class="site-name">dating app记忆系统设计调研</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">dating app记忆系统设计调研</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-14T04:03:30.535Z" title="更新于 2026-08-14 12:03:30">2026-08-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E8%B0%83%E7%A0%94/">技术调研</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="调研目的"><a href="#调研目的" class="headerlink" title="调研目的"></a>调研目的</h2><ol>
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SZQ 的技术博客</span></a><a class="nav-page-title" href="/"><span class="site-name">dating app记忆系统设计调研</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">dating app记忆系统设计调研</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-14T12:09:32.633Z" title="更新于 2026-08-14 20:09:32">2026-08-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E8%B0%83%E7%A0%94/">技术调研</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="调研目的"><a href="#调研目的" class="headerlink" title="调研目的"></a>调研目的</h2><ol>
 <li>为 dating app 的记忆系统的设计提供参考</li>
 <li>学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？</li>
 </ol>
@@ -340,7 +340,7 @@
 <p><strong>Step 3：语义检索（故意多捞）</strong></p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">internal_limit = max(top_k × 4, 60)   ← 关键：多捞</span><br><span class="line">语义结果 = 向量库按相似度搜，top_k = internal_limit</span><br></pre></td></tr></table></figure>
 
-<p>注意这里故意”多捞”：你要 top_k&#x3D;10 条，它实际先捞 60 条做候选池。因为后面要融合三路信号，得先有一个足够大的候选池，再重新排序。先宽捞、再精排。</p>
+<p>注意这里故意”多捞”：假如要 top_k&#x3D;10 条，它实际先捞 60 条做候选池。因为后面要融合三路信号，得先有一个足够大的候选池，再重新排序。先宽捞、再精排。</p>
 <p><strong>Step 4：关键词检索（BM25）</strong></p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">关键词结果 = 向量库 keyword_search(词形还原后的 query, top_k=60)</span><br></pre></td></tr></table></figure>
 
@@ -478,20 +478,8 @@
 </ol>
 </div>
 
-<p><strong>落到你的恋爱 App（这才是你要算的账）</strong></p>
-<p>Mem0 的成本模型有一个致命特点：<strong>成本随对话量线性增长</strong>——每 add() 一次，就付一次 LLM 钱。</p>
-<p>对恋爱 App 这意味着：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">每天成本 ≈ 每天对话轮数 × 每轮一次 LLM 提炼费</span><br></pre></td></tr></table></figure>
 
-<p>比如：一个用户一天聊 100 轮，数字人每轮都要 add 一次 → 一个用户一天 100 次 LLM 调用。一万个日活用户 → 一天 100 万次 LLM 调用。这笔账会非常可观。</p>
-<p>所以你在设计时需要回答几个问题：</p>
-<ol>
-<li>每轮对话都要提炼吗？还是攒几轮再提炼一次（降低调用频率，但记忆实时性变差）？</li>
-<li>提炼用多便宜的模型？提炼”记忆事实”不需要最强的模型，用便宜的小模型（比如 gpt-5-mini、甚至本地小模型）可能就够，能大幅降成本。</li>
-<li>能不能用 infer&#x3D;False 存原文 + 异步离线提炼？即写入时先便宜地存原文，等空闲时再批量提炼——把”贵的那次 LLM”从用户在线路径里挪出去。</li>
-</ol>
-<div class="note warning flat"><p><strong>一句话总结：Mem0 的成本模型是”写入重、读取轻、大头是那一次 LLM”，且成本随对话量线性增长。</strong> 对你这种高频对话的恋爱 App，这是最大的现实约束——你几乎必然要设计”怎么降低每次写入的 LLM 成本”（攒批、用便宜模型、异步提炼），而不能默认”每轮都全量提炼”。</p>
-</div>
+
 
 <h3 id="项目短板"><a href="#项目短板" class="headerlink" title="项目短板"></a>项目短板</h3><ol>
 <li><p><strong>query 不改写</strong> —— 口语化、带指代、多轮追问的查询直接向量化，检索效果打折。代价是读取零 LLM，但召回质量押在 embedding 模型上。</p>
@@ -501,7 +489,7 @@
 <li><p><strong>冲突只推迟、不消解（关系状态剧变的灾难）</strong></p>
 </li>
 </ol>
-<div class="note danger flat"><p>ADD-only 只增不减，矛盾的旧记忆物理共存。暧昧→恋爱→分手，三条记忆会同时躺在库里，全靠”时间戳排序”猜哪个是当前状态。排序一旦错，数字人可能说出”我们还在一起呢”。<strong>这恰恰是恋爱 App 最不能错的场景。</strong></p>
+<div class="note danger flat"><p>ADD-only 只增不减，矛盾的旧记忆物理共存。暧昧→恋爱→分手，三条记忆会同时躺在库里，全靠”时间戳排序”猜哪个是当前状态。排序一旦错，数字人可能说出”我们还在一起呢”。</p>
 </div>
 
 <p>严格说不是”bug”，而是它主动做的设计取舍的代价：</p>
@@ -510,14 +498,14 @@
 <li>要省成本 → 只能精确哈希 → 语义重复共存</li>
 <li>要读取便宜 → 不做 query 改写</li>
 </ul>
-<h2 id="启发"><a href="#启发" class="headerlink" title="启发"></a>启发</h2><h3 id="1-记忆重复和冲突的问题"><a href="#1-记忆重复和冲突的问题" class="headerlink" title="1. 记忆重复和冲突的问题"></a>1. 记忆重复和冲突的问题</h3><p>这对你设计数字人记忆系统是个直接可借鉴的点：你的记忆如果也是”只增不减”（恋爱 App 的对话记忆天然是累积的），那你就必须回答”重复和矛盾怎么办”——Mem0 的答案是”写入前检索 + 链接”，你也可以选”定期后台做冲突消解”或”读取时再做裁决”。三者各有代价。</p>
+<h2 id="启发"><a href="#启发" class="headerlink" title="启发"></a>启发</h2><h3 id="1-记忆重复和冲突的问题"><a href="#1-记忆重复和冲突的问题" class="headerlink" title="1. 记忆重复和冲突的问题"></a>1. 记忆重复和冲突的问题</h3><p>记忆如果也是”只增不减”（恋爱 App 的对话记忆天然是累积的），那就必须回答”重复和矛盾怎么办”——Mem0 的答案是”写入前检索 + 链接”，也可以选”定期后台做冲突消解”或”读取时再做裁决”。三者各有代价。</p>
 <div class="note success flat"><p><strong>“冲突消解放在写入还是读取”是一个关键架构决策。</strong> Mem0 v3 选了”读取时裁决”来省成本，但代价是”矛盾的旧记忆永远物理存在”。对关系状态这种需要强一致、强覆盖的数据，你可能得在 Mem0 之上自己加一层”状态覆盖”（比如关系状态单独存一份权威值，不放进累积式记忆池），而不是完全依赖它的 temporal 排序。</p>
 <p><strong>凡是”会跳变、只能有一个当前值”的（关系、情绪状态），用覆盖式存储；凡是”只会累积”的（偏好、经历），才能用只增不减。</strong></p>
 </div>
 
 <h3 id="2-成本控制"><a href="#2-成本控制" class="headerlink" title="2. 成本控制"></a>2. 成本控制</h3><p>高频对话下，别每轮都调 LLM 提炼。设计”攒批 &#x2F; 异步离线提炼 &#x2F; 用便宜小模型”——把贵的那次 LLM 从用户在线路径挪出去。</p>
-<h3 id="3-要不要做-query-改写"><a href="#3-要不要做-query-改写" class="headerlink" title="3. 要不要做 query 改写"></a>3. 要不要做 query 改写</h3><p>这是你比 Mem0 该多做的一步——用户问法是口语化、带指代、多轮追问的，读取侧加一层 LLM 改写能显著提升召回。代价是读取变贵，要权衡（可以只对”检测到指代不清”的 query 改写）。</p>
-<h3 id="4-存取的时候是存原文还是存提炼之后的数据"><a href="#4-存取的时候是存原文还是存提炼之后的数据" class="headerlink" title="4. 存取的时候是存原文还是存提炼之后的数据"></a>4. 存取的时候是存原文还是存提炼之后的数据</h3><p>这帮你看清一个设计权衡：Mem0 的”智能记忆”不是免费的，它本质是用每次写入的一次 LLM 推理，换来了”对话被自动消化成干净事实”。你在设计自己系统时，会面对同一个岔路口：</p>
+<h3 id="3-要不要做-query-改写"><a href="#3-要不要做-query-改写" class="headerlink" title="3. 要不要做 query 改写"></a>3. 要不要做 query 改写</h3><p>用户问法是口语化、带指代、多轮追问的，读取侧加一层 LLM 改写能显著提升召回。代价是读取变贵，要权衡（可以只对”检测到指代不清”的 query 改写）。</p>
+<h3 id="4-存取的时候是存原文还是存提炼之后的数据"><a href="#4-存取的时候是存原文还是存提炼之后的数据" class="headerlink" title="4. 存取的时候是存原文还是存提炼之后的数据"></a>4. 存取的时候是存原文还是存提炼之后的数据</h3><p>Mem0 的”智能记忆”不是免费的，它本质是用每次写入的一次 LLM 推理，换来了”对话被自动消化成干净事实”。在设计自己系统时，会面对同一个岔路口：</p>
 <ul>
 <li><strong>追求省 token</strong>：写入时不做提炼，只存原文，等要用时再让 LLM 从原文里现捞（延迟转移到读取侧）</li>
 <li><strong>追求检索质量</strong>：像 Mem0 这样，写入时就把事实榨干，读取时快而准（成本集中在写入侧）</li>
