@@ -1,0 +1,41 @@
+/* 文章标题层级强化 */
+
+/* 隐藏默认的标题图标，改用左边框区分层级 */
+#article-container h1::before,
+#article-container h2::before,
+#article-container h3::before,
+#article-container h4::before,
+#article-container h5::before,
+#article-container h6::before {
+  display: none !important;
+}
+
+/* 二级标题：最大、深蓝、粗左边框 */
+#article-container h2 {
+  font-size: 1.65em !important;
+  font-weight: 700 !important;
+  color: #2b6cb0 !important;
+  border-left: 5px solid #49b1f5 !important;
+  padding: 6px 0 6px 16px !important;
+  margin: 2em 0 1em !important;
+}
+
+/* 三级标题：中等、蓝、中左边框 */
+#article-container h3 {
+  font-size: 1.3em !important;
+  font-weight: 600 !important;
+  color: #2b6cb0 !important;
+  border-left: 3px solid #7bb8e0 !important;
+  padding: 4px 0 4px 12px !important;
+  margin: 1.6em 0 0.8em !important;
+}
+
+/* 四级标题：较小、灰、细左边框 */
+#article-container h4 {
+  font-size: 1.12em !important;
+  font-weight: 600 !important;
+  color: #4a5568 !important;
+  border-left: 2px solid #cbd5e0 !important;
+  padding: 3px 0 3px 10px !important;
+  margin: 1.3em 0 0.6em !important;
+}
