@@ -1,0 +1,524 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>dating app记忆系统设计调研 | SZQ 的技术博客</title><meta name="author" content="szq"><meta name="copyright" content="szq"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="调研目的 为 dating app 的记忆系统的设计提供参考 学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？  Dating app 背景 形态：数字人陪聊 BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。  关系养成型 初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。  反导流（双向） DH 不主动引导用户离开；同时检测并阻断">
+<meta property="og:type" content="article">
+<meta property="og:title" content="dating app记忆系统设计调研">
+<meta property="og:url" content="https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/index.html">
+<meta property="og:site_name" content="SZQ 的技术博客">
+<meta property="og:description" content="调研目的 为 dating app 的记忆系统的设计提供参考 学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？  Dating app 背景 形态：数字人陪聊 BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。  关系养成型 初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。  反导流（双向） DH 不主动引导用户离开；同时检测并阻断">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png">
+<meta property="article:published_time" content="2026-08-13T08:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-14T03:31:57.189Z">
+<meta property="article:author" content="szq">
+<meta property="article:tag" content="AI">
+<meta property="article:tag" content="Mem0">
+<meta property="article:tag" content="记忆系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "dating app记忆系统设计调研",
+  "url": "https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/",
+  "image": "https://xiaosuzq.github.io/img/butterfly-icon.png",
+  "datePublished": "2026-08-13T08:30:00.000Z",
+  "dateModified": "2026-08-14T03:31:57.189Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "szq",
+      "url": "https://xiaosuzq.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'dating app记忆系统设计调研',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SZQ 的技术博客</span></a><a class="nav-page-title" href="/"><span class="site-name">dating app记忆系统设计调研</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">dating app记忆系统设计调研</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-14T03:31:57.189Z" title="更新于 2026-08-14 11:31:57">2026-08-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E8%B0%83%E7%A0%94/">技术调研</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="调研目的"><a href="#调研目的" class="headerlink" title="调研目的"></a>调研目的</h2><ol>
+<li>为 dating app 的记忆系统的设计提供参考</li>
+<li>学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？</li>
+</ol>
+<h2 id="Dating-app-背景"><a href="#Dating-app-背景" class="headerlink" title="Dating app 背景"></a>Dating app 背景</h2><ol>
+<li><p><strong>形态：数字人陪聊</strong></p>
+<p>BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。</p>
+</li>
+<li><p><strong>关系养成型</strong></p>
+<p>初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。</p>
+</li>
+<li><p><strong>反导流（双向）</strong></p>
+<p>DH 不主动引导用户离开；同时检测并阻断用户发的联系方式。后果很关键：所有互动只能沉淀在平台自己的库里 → 对话历史无限增长、且永不流失。</p>
+</li>
+<li><p><strong>“像真人”是体验命门</strong></p>
+<p>DH 能不能记住久远的细节、说话前后一致、有自己的生活，直接决定沉浸感——这是产品的核心竞争力，不是可选项。</p>
+</li>
+<li><p><strong>实时 + 低成本</strong></p>
+<p>聊天要快（延迟敏感），成本要可控。</p>
+</li>
+</ol>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><table>
+<thead>
+<tr>
+<th>由哪个特点</th>
+<th>推出什么条件</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>关系养成 + 像真人</td>
+<td>精确一致性</td>
+<td>DH 说过的必须记得住，不能自相矛盾（精确记忆，不能抽错）</td>
+</tr>
+<tr>
+<td>反导流 → 历史无限增长</td>
+<td>可扩展分层</td>
+<td>不能全量注入，必须短期&#x2F;中期&#x2F;长期分层</td>
+</tr>
+<tr>
+<td>记忆的本质</td>
+<td>精确检索 vs 语义检索</td>
+<td>深刻的事精确记，不重要的事只留”模糊印象”、语义召回</td>
+</tr>
+<tr>
+<td>实时聊天</td>
+<td>低延迟 + 确定性注入</td>
+<td>记忆注入不阻塞；且由 Hook 确定注入，不是让 LLM 自主拉</td>
+</tr>
+<tr>
+<td>像真人 + 有自己的生活</td>
+<td>时效性&#x2F;生命周期</td>
+<td>记忆会演进、会过期（LifeEvent 7 天 TTL）、有冷却</td>
+</tr>
+</tbody></table>
+<h2 id="Mem0"><a href="#Mem0" class="headerlink" title="Mem0"></a>Mem0</h2><h3 id="项目定位"><a href="#项目定位" class="headerlink" title="项目定位"></a>项目定位</h3><p>Mem0 是给 AI 应用&#x2F;Agent 提供”长期记忆能力”的中间件。它自己不聊天、不思考，它负责让”会聊天的 AI”变得”记得住你”。</p>
+<h3 id="项目范式"><a href="#项目范式" class="headerlink" title="项目范式"></a>项目范式</h3><p>整个 Mem0 就是一个编排层 + 三个核心组件 + 两个辅助：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">                     你的应用</span><br><span class="line">                       │ 调用</span><br><span class="line">                       ▼</span><br><span class="line">           ┌───────────────────────┐</span><br><span class="line">           │   Memory（编排层）      │  ← 大脑中枢，只调度、不干活</span><br><span class="line">           └───────────┬───────────┘</span><br><span class="line">     ┌─────────┬───────┴───────┬─────────┐</span><br><span class="line">     ▼         ▼               ▼         │</span><br><span class="line">┌────────┐ ┌──────────┐ ┌────────────┐   │</span><br><span class="line">│  LLM   │ │Embedding │ │Vector Store│   │  ← 三个可插拔组件（核心）</span><br><span class="line">└────────┘ └──────────┘ └────────────┘   │</span><br><span class="line">                                          │</span><br><span class="line">     ┌────────────┬────────────┬──────────┘</span><br><span class="line">     ▼            ▼            ▼</span><br><span class="line">┌─────────┐  ┌─────────┐  ┌─────────┐</span><br><span class="line">│ SQLite  │  │实体存储  │  │Reranker │   ← 辅助组件</span><br><span class="line">│审计+缓存│  │实体链接  │  │精排     │</span><br><span class="line">└─────────┘  └─────────┘  └─────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="项目核心设计"><a href="#项目核心设计" class="headerlink" title="项目核心设计"></a>项目核心设计</h3><h4 id="1-写记忆过程"><a href="#1-写记忆过程" class="headerlink" title="1. 写记忆过程"></a>1. 写记忆过程</h4><p>先看入口：两种模式。<code>add()</code> 有一个开关参数 <code>infer</code>，决定走哪条路：</p>
+<ul>
+<li><code>infer=True</code>（默认）→ 走完整流水线：LLM 提炼成事实</li>
+<li><code>infer=False</code> → 跳过 LLM：每条消息直接存原文</li>
+</ul>
+<p><code>infer=False</code> 很简单：每条消息 embedding 一下直接存，不做任何”理解”。下面重点讲默认的 <code>infer=True</code> 路径，它分 7 个阶段（Phase 0~7）。</p>
+<p><strong>Phase 0：上下文收集</strong></p>
+<p>取最近 10 条消息（从 SQLite messages 表）。作用：帮 LLM 理解指代。比如新对话只有一句”它后来好了吗”，LLM 需要知道”它”指的是什么——靠的就是前面这 10 条消息。</p>
+<blockquote>
+<p>这也是为什么之前看到 SQLite 里有个 messages 表只留最近 10 条——就是给这一步当上下文用的。</p>
+</blockquote>
+<p><strong>Phase 1：检索已有记忆（关键，反直觉）</strong></p>
+<ol>
+<li>把「整段新对话」向量化</li>
+<li>拿这个向量去库里搜 top_k&#x3D;10 条最相关的旧记忆</li>
+<li>把旧记忆的真实 UUID 映射成 “0”、”1”、”2” 短序号</li>
+</ol>
+<p>两个细节值得注意：</p>
+<ul>
+<li>用”整段对话”当查询，而不是逐句查——因为要一次把”这段对话可能和哪些旧记忆有关”都捞出来。</li>
+<li>UUID → 短序号映射（源码注释写的是 “anti-hallucination”）：真实的记忆 ID 是很长的 UUID，直接喂给 LLM，LLM 输出时容易编造不存在的 UUID。映射成 “0”、”1” 再喂进去，LLM 输出后再映射回来。</li>
+</ul>
+<p><strong>Phase 2：LLM 提炼（核心中的核心）</strong></p>
+<p>把「已有记忆 + 新对话 + 最近 10 条消息」拼成一个 prompt 调一次 LLM，让它返回：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span><span class="attr">&quot;memory&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">   <span class="punctuation">&#123;</span><span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="string">&quot;0&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;text&quot;</span><span class="punctuation">:</span> <span class="string">&quot;事实1&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;attributed_to&quot;</span><span class="punctuation">:</span> <span class="string">&quot;user&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;linked_memory_ids&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;旧记忆ID&quot;</span><span class="punctuation">]</span><span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">   <span class="punctuation">&#123;</span><span class="attr">&quot;id&quot;</span><span class="punctuation">:</span> <span class="string">&quot;1&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;text&quot;</span><span class="punctuation">:</span> <span class="string">&quot;事实2&quot;</span><span class="punctuation">,</span> ...<span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">]</span><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>这一步有三个关键点：</p>
+<ol>
+<li><strong>单次调用、批量产出</strong>：一次 LLM 调用，把整段对话里所有值得记的事实一次性吐出来，不是逐句调。</li>
+<li><strong>只 ADD、不 UPDATE&#x2F;DELETE</strong>：prompt 明确告诉 LLM”你的唯一操作是 ADD”（ADDITIVE_EXTRACTION_PROMPT）。这就是”只增不减”的落地。</li>
+<li><strong>LLM 同时干三件事</strong>：提炼新事实 + 判断是否重复（参考已有记忆）+ 给出链接关系（linked_memory_ids 指向相关旧记忆）。</li>
+</ol>
+<p><strong>Phase 3：批量向量化</strong></p>
+<p>把 Phase 2 提炼出的所有事实，一次性 embedding（失败则退化成逐条 embedding，工程上的兜底）。</p>
+<p><strong>Phase 4 + 5：哈希去重（第二道防线）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">existing_hashes = 从 Phase 1 检索到的旧记忆里，收集它们的 MD5</span><br><span class="line">seen_hashes     = 本批次已处理的 MD5</span><br><span class="line"></span><br><span class="line">对每条新事实：</span><br><span class="line">  mem_hash = md5(事实文本)</span><br><span class="line">  如果 hash 在 existing_hashes 或 seen_hashes → 跳过（去重）</span><br><span class="line">  否则：分配全新 UUID，记下 hash</span><br></pre></td></tr></table></figure>
+
+<p>这里是去重的真正落地，且是”精确匹配”：只有文本逐字相同（MD5 相同）才会被跳过。”怕失败”和”害怕失败”两条，MD5 不同，都会存。</p>
+<p>所以去重其实是两层防线：</p>
+<ul>
+<li>Phase 2 的 LLM 被 prompt 要求”别重复提炼”——软约束（靠模型自觉，能挡大部分语义重复）</li>
+<li>Phase 4&#x2F;5 的 MD5——硬约束（只挡逐字相同的）</li>
+</ul>
+<p><strong>Phase 6：双写持久化</strong></p>
+<ol>
+<li>批量 insert 进向量库（向量 + payload）</li>
+<li>批量写 SQLite 的 history 表（event&#x3D;ADD）</li>
+</ol>
+<p>两个存储各存一份：向量库是”活的记忆”（供检索），SQLite 是”审计日志”（供回溯）。注意这两步是分开的、非原子的——中间失败会造成两边不一致（有逐条 fallback，但不是事务级的）。</p>
+<p><strong>Phase 7：实体链接</strong></p>
+<ol>
+<li>从所有新事实里批量抽取实体（人名、地名、宠物名…）</li>
+<li>全局去重（同一个实体跨多条记忆只存一次）</li>
+<li>把实体写进”实体库”（第二个向量 collection），并挂上它关联的 memory_id 列表</li>
+</ol>
+<p>作用：给未来的”读取”提供实体信号——检索时命中实体，就能把关联记忆一起 boost。</p>
+<div class="note info flat"><p><strong>“先检索、再提炼”（Phase 1 → 2）</strong>：检索不是为了”找东西给用户”，而是给 LLM 提供”我已知道什么”，让它做去重和链接。这是它和”直接调 LLM 存记忆”的本质区别。</p>
+<p><strong>单次 LLM + 只增不减</strong>：老版本要调两次 LLM（提炼 + 决定增改删），新版本砍成一次、只做 ADD。省成本，但把”冲突”留给了读取侧。</p>
+<p><strong>去重是”软 + 硬”两层</strong>：LLM 语义去重（软）+ MD5 精确去重（硬）。中间有缝隙——语义重复但措辞不同的，会漏进去共存。</p>
+</div>
+
+<h4 id="2-读记忆过程"><a href="#2-读记忆过程" class="headerlink" title="2. 读记忆过程"></a>2. 读记忆过程</h4><p>先看入口：<code>search(query, filters, top_k, threshold=0.1)</code> —— 拿一个问题、一个身份范围（user_id 等）、要几条、一个最低分门槛，去翻记忆。</p>
+<p>9 步流水线：</p>
+<p><strong>Step 1：预处理 query</strong></p>
+<ol>
+<li>词形还原 query（lemmatize）→ 给关键词检索用</li>
+<li>从 query 里抽实体（extract_entities）→ 给人名&#x2F;地名等命名实体用</li>
+</ol>
+<p>（这里的词形还原和实体抽取都是调用了 spaCy 这个框架来完成的）</p>
+<p>一个 query 要提前加工成两种形态：一种给”关键词匹配”，一种给”实体匹配”。</p>
+<p><strong>Step 2：query 向量化</strong></p>
+<p>query → embedding 成一个向量，这是给”语义检索”用的。</p>
+<p><strong>Step 3：语义检索（故意多捞）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">internal_limit = max(top_k × 4, 60)   ← 关键：多捞</span><br><span class="line">语义结果 = 向量库按相似度搜，top_k = internal_limit</span><br></pre></td></tr></table></figure>
+
+<p>注意这里故意”多捞”：你要 top_k&#x3D;10 条，它实际先捞 60 条做候选池。因为后面要融合三路信号，得先有一个足够大的候选池，再重新排序。先宽捞、再精排。</p>
+<p><strong>Step 4：关键词检索（BM25）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">关键词结果 = 向量库 keyword_search(词形还原后的 query, top_k=60)</span><br></pre></td></tr></table></figure>
+
+<p>用 BM25 算法做精确词匹配。只有向量库支持才做（有些向量库不支持就跳过）。</p>
+<p><strong>Step 5：归一化 BM25 分数</strong></p>
+<p>原始 BM25 分是无界的（0<del>20+），用 sigmoid 函数压到 [0,1]，且 sigmoid 参数根据 query 长度自适应（词越多，中点越高）。为什么要归一化？因为下一步要加法融合，BM25 的分必须和语义分（0</del>1）在同一个量级，否则没法加。</p>
+<p><strong>Step 6：实体加分</strong></p>
+<p>如果 query 抽出了实体（比如”Poppy”）：</p>
+<ul>
+<li>对每个实体 → embedding → 去实体库搜（相似度≥0.5 才算命中）</li>
+<li>命中的实体 → 给它关联的记忆加分（boost 上限 0.5）</li>
+</ul>
+<p>这就是”实体链接”在读取侧的作用：提到”Poppy”，把和 Poppy 有关的记忆都提权。</p>
+<p><strong>Step 7：构建候选集</strong></p>
+<p>从语义结果里构建候选，顺便过滤掉”已过期”的记忆（记忆可以设过期时间 expiration_date，过期的默认不返回）。</p>
+<p><strong>Step 8：三路融合打分（核心）</strong></p>
+<p>这是读取流程的心脏，实现在 score_and_rank（scoring.py）：</p>
+<p>对每个候选记忆：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">语义分 = 向量检索给的分（0~1）</span><br><span class="line">BM25分 = Step 5 归一化后的分（0~1）</span><br><span class="line">实体分 = Step 6 的 boost（0~0.5）</span><br><span class="line"></span><br><span class="line">原始总分 = 语义分 + BM25分 + 实体分          ← 纯加法</span><br><span class="line">最终分   = 原始总分 ÷ 最大可能分               ← 再归一化到 [0,1]</span><br><span class="line">按最终分降序，取前 top_k</span><br></pre></td></tr></table></figure>
+
+<p>三个关键设计：</p>
+<ol>
+<li><strong>加法融合，不是加权平均</strong>——三个信号直接相加，谁强谁加分。</li>
+<li><strong>“最大可能分”是动态的</strong>，取决于哪些信号活跃：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>活跃信号</th>
+<th>最大可能分</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>只有语义</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>语义 + BM25</td>
+<td>2.0</td>
+</tr>
+<tr>
+<td>语义 + 实体</td>
+<td>1.5</td>
+</tr>
+<tr>
+<td>三路全有</td>
+<td>2.5</td>
+</tr>
+</tbody></table>
+<p>   这样保证最终分始终落在 0~1，可比。</p>
+<ol start="3">
+<li><strong>语义分是”门槛”（gate）</strong>：语义分低于 threshold（默认 0.1）的候选，直接排除，哪怕 BM25 或实体能给它加很高的分。</li>
+</ol>
+<div class="note info flat"><p>这个设计很关键：它坚持”语义相关是前提”，BM25 和实体只是”锦上添花的提权”，不能把语义上不相关的东西硬救回来。</p>
+</div>
+
+<p><strong>Step 9：格式化返回</strong></p>
+<p>把结果打包成 MemoryItem：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#123; id, memory(事实文本), hash, created_at, updated_at, score, user_id, ... &#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回的就是一句句”记忆事实” + 分数 + 身份标签，供你塞进 prompt。</p>
+<p><strong>三个最值得记住的设计点</strong></p>
+<div class="note primary flat"><ol>
+<li><p><strong>先宽捞、再精排</strong>（Step 3 的 over-fetch）：要 10 条，先捞 60 条，融合排序后再取前 10。用”多捞”换取”排序更准”。</p>
+</li>
+<li><p><strong>加法融合 + 语义门槛</strong>（Step 8）：三路信号相加，但语义分是硬门槛——语义上不相关的东西，关键词和实体再强也救不回来。这是它防止”关键词误命中”的保险。</p>
+</li>
+<li><p><strong>BM25 用 sigmoid 归一化</strong>（Step 5）：因为原始 BM25 分无界，必须压到 0~1 才能和语义分相加。且参数随 query 长度自适应（长 query 原始分天然更高，所以中点也调高）。</p>
+</li>
+</ol>
+</div>
+
+<h4 id="3-记忆的形态"><a href="#3-记忆的形态" class="headerlink" title="3. 记忆的形态"></a>3. 记忆的形态</h4><p>一条记忆 &#x3D; 三个东西：一句人话 + 一个向量 + 一堆标签。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">data:   &quot;小雨害怕失败，源于父亲否定&quot;    ← 记忆本体（一句自然语言，不是字段）</span><br><span class="line">vector: [0.023, -0.411, ...]            ← 语义坐标（只用于算相似度，人不看）</span><br><span class="line">payload: user_id / hash / created_at 等  ← 标签（用于过滤、去重、排序）</span><br></pre></td></tr></table></figure>
+
+<p>唯一要记住的一点：<strong>记忆本体是自然语言，不是结构化字段</strong>（不是 <code>&#123;name:&quot;小雨&quot;, fear:&quot;失败&quot;&#125;</code>）。</p>
+<ul>
+<li>好处：灵活，什么都能表达；</li>
+<li>代价：不能精确查询（没法 WHERE 恐惧原因&#x3D;…），只能靠语义相似度模糊匹配。</li>
+</ul>
+<p>其余（hash、向量、时间戳这些标签）都是”辅助检索”用的，不是记忆内容本身。</p>
+<h4 id="4-成本"><a href="#4-成本" class="headerlink" title="4. 成本"></a>4. 成本</h4><p>“成本模型”回答一个问题：用 Mem0，钱和算力花在哪、谁贵谁便宜、能不能省。</p>
+<p>核心结论：<strong>成本几乎全压在”写入”，而且大头是 LLM</strong>。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>写入（add）</th>
+<th>读取（search）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LLM 调用</td>
+<td>1 次（提炼事实）</td>
+<td>0 次</td>
+</tr>
+<tr>
+<td>embedding 调用</td>
+<td>2~N 次</td>
+<td>1 次</td>
+</tr>
+<tr>
+<td>成本级别</td>
+<td>贵</td>
+<td>便宜</td>
+</tr>
+</tbody></table>
+<p>关键事实：LLM 和 embedding 的价格差好几个数量级。一次 LLM 提炼（几毛到几块，取决于模型和 token 数），一次 embedding（text-embedding-3-small 是百万 token 几毛钱，单条记忆几乎可忽略）。</p>
+<p>所以：<strong>写入贵在”那一次 LLM”，读取便宜在”只用 embedding、不碰 LLM”</strong>。</p>
+<p><strong>写入拆解：钱花在哪</strong></p>
+<p>一次 add()（默认提炼模式）的调用清单：</p>
+<ol>
+<li>检索已有记忆 → 1 次 embedding（把整段对话向量化去搜）</li>
+<li>LLM 提炼成事实 → 1 次 LLM ← 成本大头在这</li>
+<li>批量向量化新事实 → 1 次 embed_batch</li>
+<li>实体链接 → N 次 embedding（实体也要向量化存实体库）</li>
+</ol>
+<p>结论：一次写入 ≈ 1 次 LLM + 若干次 embedding。embedding 那几笔几乎可以忽略，真正的账单就是”那一次 LLM”。</p>
+<p><strong>读取拆解：为什么便宜</strong></p>
+<p>一次 search() 的调用清单：</p>
+<ol>
+<li>query 向量化 → 1 次 embedding</li>
+<li>语义 + BM25 + 实体检索 → 向量库本地检索（无外部 API）</li>
+<li>（可选）rerank → 默认关，开了才有额外调用</li>
+</ol>
+<p>结论：一次读取 ≈ 1 次 embedding，零 LLM。这是刻意设计出来的——还记得之前说的”query 不做改写”吗？原因就是：改写要调 LLM，会让读取变贵，所以它拒绝。</p>
+<p><strong>三个影响成本的开关</strong></p>
+<div class="note warning flat"><ol>
+<li><p><strong>V3 把写入的 LLM 从 2 次砍到 1 次</strong>：老版本写入要调两次 LLM（先提炼、再决定增改删），新版改成”ADD-only 单次调用”。这是它最大的成本优化——代价是放弃了”修改&#x2F;删除旧记忆”的能力（也就是”冲突只能推迟，不能消解”）。</p>
+</li>
+<li><p><strong>infer&#x3D;False 可以彻底跳过 LLM</strong>：add(messages, infer&#x3D;False) 时不提炼，直接存原文，零 LLM 成本。代价是失去”提炼”的质量——存的是原始消息，不是干净事实。</p>
+</li>
+<li><p><strong>读取侧全程不碰 LLM</strong>：不 query 改写、rerank 默认关，都是为了守住”读取零 LLM”这条线。</p>
+</li>
+</ol>
+</div>
+
+<p><strong>落到你的恋爱 App（这才是你要算的账）</strong></p>
+<p>Mem0 的成本模型有一个致命特点：<strong>成本随对话量线性增长</strong>——每 add() 一次，就付一次 LLM 钱。</p>
+<p>对恋爱 App 这意味着：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">每天成本 ≈ 每天对话轮数 × 每轮一次 LLM 提炼费</span><br></pre></td></tr></table></figure>
+
+<p>比如：一个用户一天聊 100 轮，数字人每轮都要 add 一次 → 一个用户一天 100 次 LLM 调用。一万个日活用户 → 一天 100 万次 LLM 调用。这笔账会非常可观。</p>
+<p>所以你在设计时需要回答几个问题：</p>
+<ol>
+<li>每轮对话都要提炼吗？还是攒几轮再提炼一次（降低调用频率，但记忆实时性变差）？</li>
+<li>提炼用多便宜的模型？提炼”记忆事实”不需要最强的模型，用便宜的小模型（比如 gpt-5-mini、甚至本地小模型）可能就够，能大幅降成本。</li>
+<li>能不能用 infer&#x3D;False 存原文 + 异步离线提炼？即写入时先便宜地存原文，等空闲时再批量提炼——把”贵的那次 LLM”从用户在线路径里挪出去。</li>
+</ol>
+<div class="note warning flat"><p><strong>一句话总结：Mem0 的成本模型是”写入重、读取轻、大头是那一次 LLM”，且成本随对话量线性增长。</strong> 对你这种高频对话的恋爱 App，这是最大的现实约束——你几乎必然要设计”怎么降低每次写入的 LLM 成本”（攒批、用便宜模型、异步提炼），而不能默认”每轮都全量提炼”。</p>
+</div>
+
+<h3 id="项目短板"><a href="#项目短板" class="headerlink" title="项目短板"></a>项目短板</h3><ol>
+<li><p><strong>query 不改写</strong> —— 口语化、带指代、多轮追问的查询直接向量化，检索效果打折。代价是读取零 LLM，但召回质量押在 embedding 模型上。</p>
+</li>
+<li><p><strong>成本随对话量线性增长</strong> —— 每写入一次付一次 LLM 费，高频对话场景账单可观（前面刚算过）。</p>
+</li>
+<li><p><strong>冲突只推迟、不消解（关系状态剧变的灾难）</strong></p>
+</li>
+</ol>
+<div class="note danger flat"><p>ADD-only 只增不减，矛盾的旧记忆物理共存。暧昧→恋爱→分手，三条记忆会同时躺在库里，全靠”时间戳排序”猜哪个是当前状态。排序一旦错，数字人可能说出”我们还在一起呢”。<strong>这恰恰是恋爱 App 最不能错的场景。</strong></p>
+</div>
+
+<p>严格说不是”bug”，而是它主动做的设计取舍的代价：</p>
+<ul>
+<li>要省成本 → 只能 ADD-only → 冲突共存</li>
+<li>要省成本 → 只能精确哈希 → 语义重复共存</li>
+<li>要读取便宜 → 不做 query 改写</li>
+</ul>
+<h2 id="启发"><a href="#启发" class="headerlink" title="启发"></a>启发</h2><h3 id="1-记忆重复和冲突的问题"><a href="#1-记忆重复和冲突的问题" class="headerlink" title="1. 记忆重复和冲突的问题"></a>1. 记忆重复和冲突的问题</h3><p>这对你设计数字人记忆系统是个直接可借鉴的点：你的记忆如果也是”只增不减”（恋爱 App 的对话记忆天然是累积的），那你就必须回答”重复和矛盾怎么办”——Mem0 的答案是”写入前检索 + 链接”，你也可以选”定期后台做冲突消解”或”读取时再做裁决”。三者各有代价。</p>
+<div class="note success flat"><p><strong>“冲突消解放在写入还是读取”是一个关键架构决策。</strong> Mem0 v3 选了”读取时裁决”来省成本，但代价是”矛盾的旧记忆永远物理存在”。对关系状态这种需要强一致、强覆盖的数据，你可能得在 Mem0 之上自己加一层”状态覆盖”（比如关系状态单独存一份权威值，不放进累积式记忆池），而不是完全依赖它的 temporal 排序。</p>
+<p><strong>凡是”会跳变、只能有一个当前值”的（关系、情绪状态），用覆盖式存储；凡是”只会累积”的（偏好、经历），才能用只增不减。</strong></p>
+</div>
+
+<h3 id="2-成本控制"><a href="#2-成本控制" class="headerlink" title="2. 成本控制"></a>2. 成本控制</h3><p>高频对话下，别每轮都调 LLM 提炼。设计”攒批 &#x2F; 异步离线提炼 &#x2F; 用便宜小模型”——把贵的那次 LLM 从用户在线路径挪出去。</p>
+<h3 id="3-要不要做-query-改写"><a href="#3-要不要做-query-改写" class="headerlink" title="3. 要不要做 query 改写"></a>3. 要不要做 query 改写</h3><p>这是你比 Mem0 该多做的一步——用户问法是口语化、带指代、多轮追问的，读取侧加一层 LLM 改写能显著提升召回。代价是读取变贵，要权衡（可以只对”检测到指代不清”的 query 改写）。</p>
+<h3 id="4-存取的时候是存原文还是存提炼之后的数据"><a href="#4-存取的时候是存原文还是存提炼之后的数据" class="headerlink" title="4. 存取的时候是存原文还是存提炼之后的数据"></a>4. 存取的时候是存原文还是存提炼之后的数据</h3><p>这帮你看清一个设计权衡：Mem0 的”智能记忆”不是免费的，它本质是用每次写入的一次 LLM 推理，换来了”对话被自动消化成干净事实”。你在设计自己系统时，会面对同一个岔路口：</p>
+<ul>
+<li><strong>追求省 token</strong>：写入时不做提炼，只存原文，等要用时再让 LLM 从原文里现捞（延迟转移到读取侧）</li>
+<li><strong>追求检索质量</strong>：像 Mem0 这样，写入时就把事实榨干，读取时快而准（成本集中在写入侧）</li>
+</ul>
+<div class="note success flat"><p>Mem0 选了后者，并且用”单次调用、只增不减”把写入成本压到最低。这是它值得你记进报告的一个明确取舍。</p>
+</div>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io">szq</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/">https://xiaosuzq.github.io/2026/08/13/dating-app-memory-system/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://xiaosuzq.github.io" target="_blank">SZQ 的技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F/">记忆系统</a><a class="post-meta__tags" href="/tags/AI/">AI</a><a class="post-meta__tags" href="/tags/Mem0/">Mem0</a></div><div class="post-share"><div class="social-share" data-image="/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/08/13/hello-world/" title="Hello World"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Hello World</div></div><div class="info-2"><div class="info-item-1">Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub. Quick StartCreate a new post1$ hexo new &quot;My New Post&quot;  More info: Writing Run server1$ hexo server  More info: Server Generate static files1$ hexo generate  More info: Generating Deploy to remote sites1$ hexo deploy  More info: Deployment </div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">szq</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">3</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B0%83%E7%A0%94%E7%9B%AE%E7%9A%84"><span class="toc-number">1.</span> <span class="toc-text">调研目的</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Dating-app-%E8%83%8C%E6%99%AF"><span class="toc-number">2.</span> <span class="toc-text">Dating app 背景</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">2.1.</span> <span class="toc-text">总结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Mem0"><span class="toc-number">3.</span> <span class="toc-text">Mem0</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E5%AE%9A%E4%BD%8D"><span class="toc-number">3.1.</span> <span class="toc-text">项目定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E8%8C%83%E5%BC%8F"><span class="toc-number">3.2.</span> <span class="toc-text">项目范式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E6%A0%B8%E5%BF%83%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.3.</span> <span class="toc-text">项目核心设计</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E5%86%99%E8%AE%B0%E5%BF%86%E8%BF%87%E7%A8%8B"><span class="toc-number">3.3.1.</span> <span class="toc-text">1. 写记忆过程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E8%AF%BB%E8%AE%B0%E5%BF%86%E8%BF%87%E7%A8%8B"><span class="toc-number">3.3.2.</span> <span class="toc-text">2. 读记忆过程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E8%AE%B0%E5%BF%86%E7%9A%84%E5%BD%A2%E6%80%81"><span class="toc-number">3.3.3.</span> <span class="toc-text">3. 记忆的形态</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E6%88%90%E6%9C%AC"><span class="toc-number">3.3.4.</span> <span class="toc-text">4. 成本</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%9F%AD%E6%9D%BF"><span class="toc-number">3.4.</span> <span class="toc-text">项目短板</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%90%AF%E5%8F%91"><span class="toc-number">4.</span> <span class="toc-text">启发</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E8%AE%B0%E5%BF%86%E9%87%8D%E5%A4%8D%E5%92%8C%E5%86%B2%E7%AA%81%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">4.1.</span> <span class="toc-text">1. 记忆重复和冲突的问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E6%88%90%E6%9C%AC%E6%8E%A7%E5%88%B6"><span class="toc-number">4.2.</span> <span class="toc-text">2. 成本控制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%A6%81%E4%B8%8D%E8%A6%81%E5%81%9A-query-%E6%94%B9%E5%86%99"><span class="toc-number">4.3.</span> <span class="toc-text">3. 要不要做 query 改写</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E5%AD%98%E5%8F%96%E7%9A%84%E6%97%B6%E5%80%99%E6%98%AF%E5%AD%98%E5%8E%9F%E6%96%87%E8%BF%98%E6%98%AF%E5%AD%98%E6%8F%90%E7%82%BC%E4%B9%8B%E5%90%8E%E7%9A%84%E6%95%B0%E6%8D%AE"><span class="toc-number">4.4.</span> <span class="toc-text">4. 存取的时候是存原文还是存提炼之后的数据</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研">dating app记忆系统设计调研</a><time datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/hello-world/" title="Hello World">Hello World</a><time datetime="2026-08-13T06:06:10.140Z" title="发表于 2026-08-13 14:06:10">2026-08-13</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By szq</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.2</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
