@@ -30,12 +30,12 @@
   margin: 1.6em 0 0.8em !important;
 }
 
-/* 四级标题：较小、灰、细左边框 */
+/* 四级标题：蓝色加粗，与正文明显区分，边框比三级更细 */
 #article-container h4 {
-  font-size: 1.12em !important;
-  font-weight: 600 !important;
-  color: #4a5568 !important;
-  border-left: 2px solid #cbd5e0 !important;
-  padding: 3px 0 3px 10px !important;
-  margin: 1.3em 0 0.6em !important;
+  font-size: 1.18em !important;
+  font-weight: 700 !important;
+  color: #2b6cb0 !important;
+  border-left: 2px solid #7bb8e0 !important;
+  padding: 4px 0 4px 12px !important;
+  margin: 1.4em 0 0.7em !important;
 }
