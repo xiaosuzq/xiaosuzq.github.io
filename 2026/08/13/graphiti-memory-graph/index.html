@@ -1,0 +1,756 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远 | SZQ 的技术博客</title><meta name="author" content="szq"><meta name="copyright" content="szq"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 Graphiti。  项目定位Graphiti &#x3D; LLM 驱动的时序知识图谱引擎，专为 AI Agent 的长期记忆而生：自动从对话&#x2F;数据里抽取实体和关系，增量织成一张带时间、可溯源的知识网，再用”语义 + 关键词 + 图遍历”混合检索取出来喂给 Agent。 知识图谱 vs 传统 RAG核心区别一">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远">
+<meta property="og:url" content="https://xiaosuzq.github.io/2026/08/13/graphiti-memory-graph/index.html">
+<meta property="og:site_name" content="SZQ 的技术博客">
+<meta property="og:description" content="本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 Graphiti。  项目定位Graphiti &#x3D; LLM 驱动的时序知识图谱引擎，专为 AI Agent 的长期记忆而生：自动从对话&#x2F;数据里抽取实体和关系，增量织成一张带时间、可溯源的知识网，再用”语义 + 关键词 + 图遍历”混合检索取出来喂给 Agent。 知识图谱 vs 传统 RAG核心区别一">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png">
+<meta property="article:published_time" content="2026-08-13T09:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-14T12:27:12.288Z">
+<meta property="article:author" content="szq">
+<meta property="article:tag" content="Graphiti">
+<meta property="article:tag" content="知识图谱">
+<meta property="article:tag" content="记忆系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Graphiti走了一遭:时序知识图谱,离\"陪聊记忆\"还差多远",
+  "url": "https://xiaosuzq.github.io/2026/08/13/graphiti-memory-graph/",
+  "image": "https://xiaosuzq.github.io/img/butterfly-icon.png",
+  "datePublished": "2026-08-13T09:30:00.000Z",
+  "dateModified": "2026-08-14T12:27:12.288Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "szq",
+      "url": "https://xiaosuzq.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://xiaosuzq.github.io/2026/08/13/graphiti-memory-graph/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Graphiti走了一遭:时序知识图谱,离"陪聊记忆"还差多远',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SZQ 的技术博客</span></a><a class="nav-page-title" href="/"><span class="site-name">Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-13T09:30:00.000Z" title="发表于 2026-08-13 17:30:00">2026-08-13</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-14T12:27:12.288Z" title="更新于 2026-08-14 20:27:12">2026-08-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%A0%94/">记忆系统调研</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>本文是《<a href="/2026/08/13/dating-app-memory-system/">dating app记忆系统设计调研</a>》的子文章，分析对象为开源项目 <a target="_blank" rel="noopener" href="https://github.com/getzep/graphiti">Graphiti</a>。</p>
+</blockquote>
+<h2 id="项目定位"><a href="#项目定位" class="headerlink" title="项目定位"></a>项目定位</h2><p>Graphiti &#x3D; LLM 驱动的<strong>时序知识图谱引擎</strong>，专为 AI Agent 的长期记忆而生：自动从对话&#x2F;数据里抽取实体和关系，增量织成一张带时间、可溯源的知识网，再用”语义 + 关键词 + 图遍历”混合检索取出来喂给 Agent。</p>
+<h2 id="知识图谱-vs-传统-RAG"><a href="#知识图谱-vs-传统-RAG" class="headerlink" title="知识图谱 vs 传统 RAG"></a>知识图谱 vs 传统 RAG</h2><h3 id="核心区别一句话"><a href="#核心区别一句话" class="headerlink" title="核心区别一句话"></a>核心区别一句话</h3><p>普通 RAG 是”检索文档片段”，Graphiti 是”维护一张随时间演化的知识图谱”。前者回答”哪段文本相关”，后者回答”关于这件事，目前什么是对的、过去发生过什么”。</p>
+<h3 id="本质区别对照"><a href="#本质区别对照" class="headerlink" title="本质区别对照"></a>本质区别对照</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>普通 RAG</th>
+<th>Graphiti</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>存什么</td>
+<td>原文切片（chunk）+ 向量</td>
+<td>结构化事实（实体→关系→实体）</td>
+</tr>
+<tr>
+<td>检索方式</td>
+<td>向量相似度（embedding）</td>
+<td>语义 + BM25 + 图遍历 三者混合</td>
+</tr>
+<tr>
+<td>时间</td>
+<td>基本无（数据是静态快照）</td>
+<td>每条事实有时间窗口，可查”任意时间点的真值”</td>
+</tr>
+<tr>
+<td>更新</td>
+<td>重嵌入&#x2F;重建索引（批量）</td>
+<td>增量更新，新数据实时融入</td>
+</tr>
+<tr>
+<td>冲突处理</td>
+<td>新旧版本并存或覆盖</td>
+<td>旧事实自动”失效”但保留，历史可追溯</td>
+</tr>
+<tr>
+<td>溯源</td>
+<td>追溯到某文档</td>
+<td>追溯到产生它的 episode（原始数据）</td>
+</tr>
+<tr>
+<td>知识组织</td>
+<td>扁平，无结构</td>
+<td>有实体、关系、本体（可自定义类型）</td>
+</tr>
+</tbody></table>
+<h3 id="具体拆开说"><a href="#具体拆开说" class="headerlink" title="具体拆开说"></a>具体拆开说</h3><p><strong>1. 检索粒度不同</strong></p>
+<p>普通 RAG 返回的是文本块，模型还得自己从一堆段落里重新理解。Graphiti 返回的是结构化事实，比如 <code>Kendra --喜欢--&gt; Adidas鞋子（截至 2026年3月）</code>，直接是知识而不是原文，Agent 拿到就能用。</p>
+<p><strong>2. 增量 vs 批量</strong></p>
+<p>普通 RAG 数据一变往往要重新分块、重新 embedding、重建索引。Graphiti 的 <code>add_episode()</code> 是把新对话&#x2F;文档实时解析、和已有图谱去重合并（resolve_extracted_nodes），只更新受影响的部分。</p>
+<p><strong>3. 知识的组织方式</strong></p>
+<p>普通 RAG 是一堆扁平的向量点。Graphiti 有图结构——实体之间通过关系相连，所以能做图遍历（比如”A 的同事的老板是谁”这种多跳问题），还能自定义本体（用 Pydantic 定义你关心的实体&#x2F;关系类型），这是纯向量检索做不到的。</p>
+<h3 id="和-GraphRAG-比呢？"><a href="#和-GraphRAG-比呢？" class="headerlink" title="和 GraphRAG 比呢？"></a>和 GraphRAG 比呢？</h3><p>GraphRAG 比普通 RAG 进一步（也建图），但它主要用于静态文档的批量摘要（社区聚类 + 顺序 LLM 摘要），时间是基本的时间戳，查询延迟秒级到几十秒。Graphiti 则是为动态、高频更新的 Agent 场景设计的：增量、实时、亚秒级查询、自动事实失效。</p>
+<h2 id="项目范式"><a href="#项目范式" class="headerlink" title="项目范式"></a>项目范式</h2><p>整体分层架构（自顶向下）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│                    你的应用 / 用户                        │</span><br><span class="line">│         Python代码        HTTP客户端       AI助手         │</span><br><span class="line">└──────┬──────────────────┬───────────────────┬───────────┘</span><br><span class="line">       │ import           │ REST API          │ MCP</span><br><span class="line">       ▼                  ▼                   ▼</span><br><span class="line">┌─────────────┐   ┌──────────────┐    ┌──────────────┐</span><br><span class="line">│ graphiti_core│   │   server/    │    │  mcp_server/ │</span><br><span class="line">│   核心库      │   │  (FastAPI)   │    │    (MCP)     │</span><br><span class="line">└──────┬──────┘   └──────┬───────┘    └──────┬───────┘</span><br><span class="line">       └─────────────────┴──────────────────┘</span><br><span class="line">                         │ 都封装成</span><br><span class="line">                         ▼</span><br><span class="line">        ┌────────────────────────────────────┐</span><br><span class="line">        │     Graphiti 类 —— 唯一门面         │</span><br><span class="line">        │   add_episode()      search()      │</span><br><span class="line">        └────────┬────────────────┬──────────┘</span><br><span class="line">                 │                │</span><br><span class="line">          [写记忆 · 重]      [读记忆 · 轻]</span><br><span class="line">                 │                │</span><br><span class="line">                 ▼                ▼</span><br><span class="line">        ┌──────────────┐  ┌──────────────┐</span><br><span class="line">        │抽取→去重→失效  │  │ 三路混合检索   │</span><br><span class="line">        │→摘要→存库      │  │ →融合排序     │</span><br><span class="line">        └──────┬───────┘  └──────┬───────┘</span><br><span class="line">               └────────┬─────────┘</span><br><span class="line">                        ▼</span><br><span class="line">        ┌────────────────────────────────────┐</span><br><span class="line">        │   4 个可插拔端口(依赖注入)           │</span><br><span class="line">        │  GraphDriver · LLM · Embedder · Reranker │</span><br><span class="line">        └──┬──────────┬──────────┬─────────┬─┘</span><br><span class="line">           ▼          ▼          ▼         ▼</span><br><span class="line">        ┌──────┐  ┌───────┐  ┌───────┐  ┌────────┐</span><br><span class="line">        │Neo4j │  │OpenAI │  │OpenAI │  │OpenAI  │</span><br><span class="line">        │Falkor│  │Gemini │  │Gemini │  │Gemini  │</span><br><span class="line">        │Neptun│  │Anthr. │  │Voyage │  │BGE     │</span><br><span class="line">        │Kuzu  │  │Groq...│  │Azure..│  │...     │</span><br><span class="line">        └──────┘  └───────┘  └───────┘  └────────┘</span><br><span class="line">           ▼</span><br><span class="line">     图数据库(存:实体·边·对话·社区)</span><br></pre></td></tr></table></figure>
+
+<div class="note info flat"><p>看这张图的关键：<strong>上下是”调用方向”，左右是”可替换”</strong>。上面三个入口可以随便选，下面四个端口（数据库&#x2F;LLM&#x2F;向量&#x2F;重排）可以随便换——中间的业务逻辑不动。</p>
+</div>
+
+<h2 id="项目核心设计"><a href="#项目核心设计" class="headerlink" title="项目核心设计"></a>项目核心设计</h2><h3 id="1-写记忆"><a href="#1-写记忆" class="headerlink" title="1. 写记忆"></a>1. 写记忆</h3><p><strong>① 收对话</strong></p>
+<p>输入：调用方传一段话 + 它的发生时间</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">await</span> graphiti.add_episode(</span><br><span class="line">    name=<span class="string">&quot;日常聊天&quot;</span>,</span><br><span class="line">    episode_body=<span class="string">&quot;今天我和 Kendra 一起吃了寿司,她说最近在找产品经理的工作&quot;</span>,</span><br><span class="line">    reference_time=datetime(<span class="number">2026</span>, <span class="number">8</span>, <span class="number">13</span>),   <span class="comment"># 事件时间</span></span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>输出：生成一个 EpisodicNode，原文和时间都存进去：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">EpisodicNode(</span><br><span class="line">    content=&quot;今天我和 Kendra 一起吃了寿司...&quot;,   # 原文原样存</span><br><span class="line">    valid_at=&quot;2026-08-13&quot;,                       # 事件时间</span><br><span class="line">    created_at=&quot;2026-08-13 18:00&quot;,               # 处理时间(现在)</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>② 拉历史上下文</strong></p>
+<p>做了什么：抽取需要上下文，所以先 <code>retrieve_episodes()</code> 把最近的几段历史对话拉出来。</p>
+<p>输出：拿到 <code>previous_episodes = [Episode1: &quot;Kendra 说她喜欢 Adidas 的鞋子&quot;]</code>，喂给后面的 LLM，让它理解”她”指的是谁。</p>
+<p><strong>③ LLM 抽实体</strong></p>
+<p>输入：当前对话 + 历史对话（Episode1）一起喂给 LLM，要求结构化输出。</p>
+<p>输出：LLM 返回 JSON，每个名字变成一个临时的 EntityNode（临时 uuid）：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span> <span class="attr">&quot;extracted_entities&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;我&quot;</span><span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Kendra&quot;</span><span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;寿司&quot;</span><span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;产品经理&quot;</span><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">]</span><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>④ 实体去重合并（织网关键）</strong></p>
+<p>做了什么：判断”新抽出的 Kendra”是不是”图里已有的 Kendra”。</p>
+<p>具体过程（针对 Kendra）：</p>
+<ol>
+<li>向量粗筛：embedding “Kendra” → 在图里搜相似节点 → 找到旧 Kendra（cosine&#x3D;0.98）</li>
+<li>LLM 精判：”新旧 Kendra 是不是同一个实体？” → 是</li>
+<li>结果：丢弃新 Kendra 的临时 uuid，复用旧 Kendra 的 uuid</li>
+</ol>
+<p>输出：我、寿司、产品经理是新的，保留新 uuid；Kendra 指向旧节点。这样新事实会挂到同一个 Kendra 上，而不是造出第二个。</p>
+<p><strong>⑤ LLM 抽边</strong></p>
+<p>输入：抽到的实体列表喂给 LLM，让它输出实体间的关系。</p>
+<p>输出：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span> <span class="attr">&quot;edges&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;source_entity_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;我&quot;</span><span class="punctuation">,</span>     <span class="attr">&quot;relation_type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;吃了&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;target_entity_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;寿司&quot;</span><span class="punctuation">,</span></span><br><span class="line">     <span class="attr">&quot;fact&quot;</span><span class="punctuation">:</span> <span class="string">&quot;我吃了寿司&quot;</span><span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span><span class="attr">&quot;source_entity_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Kendra&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;relation_type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;寻找&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;target_entity_name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;产品经理&quot;</span><span class="punctuation">,</span></span><br><span class="line">     <span class="attr">&quot;fact&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Kendra 在找产品经理的工作&quot;</span><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">]</span><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>代码把名字换成 uuid，得到：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(我的uuid) --吃了--&gt; (寿司的uuid)</span><br><span class="line">(Kendra的旧uuid) --寻找--&gt; (产品经理的uuid)</span><br></pre></td></tr></table></figure>
+
+<p><strong>⑥ 边解析 + 失效（时间感知关键）</strong></p>
+<p>做了什么：每条新边去和图里已有边比对，LLM 判断是”重复 &#x2F; 新事实 &#x2F; 推翻旧事实”。</p>
+<p>具体例子：</p>
+<ul>
+<li>Kendra 在找产品经理的工作 → 图里没有 → 新边，valid_at &#x3D; 2026-08-13</li>
+<li>我吃了寿司 → 图里没有 → 新边</li>
+<li>（假设之前存过 Kendra 不想工作 → 现在这条会推翻它，旧边打上 invalid_at &#x3D; 2026-08-13，不删除）</li>
+</ul>
+<p><strong>⑦ 抽属性 + 摘要（实体随记忆生长）</strong></p>
+<p>做了什么：更新每个实体的 summary，素材是「旧摘要 + 这个实体连着的所有事实边 + 新旧对话」。</p>
+<p>具体例子（针对 Kendra）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">旧摘要:  喜欢运动鞋的女生</span><br><span class="line">连着的边: Kendra 喜欢 Adidas 鞋子</span><br><span class="line">         Kendra 在找产品经理的工作   ← 刚抽的新边</span><br></pre></td></tr></table></figure>
+
+<p>输出：LLM 综合后更新 Kendra 的摘要：</p>
+<blockquote>
+<p>“喜欢 Adidas 运动鞋的女生,最近在找产品经理的工作。”</p>
+</blockquote>
+<p>（短的话直接拼接不调 LLM，长了才让 LLM 重写）</p>
+<p><strong>⑧ 生成向量</strong></p>
+<p>做了什么：给后面”读”准备检索索引。</p>
+<p>输出：</p>
+<ul>
+<li>name_embedding：我&#x2F;Kendra&#x2F;寿司&#x2F;产品经理 各生成一个名字向量</li>
+<li>fact_embedding：我吃了寿司、Kendra 在找产品经理的工作 各生成一个事实向量</li>
+</ul>
+<p><strong>⑨ 写入图数据库</strong></p>
+<p>做了什么：一次性落库。</p>
+<p>输出（图里新增的部分）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">节点: EpisodicNode(Episode2)</span><br><span class="line">      3 个新 EntityNode(我/寿司/产品经理) + 复用旧的 Kendra</span><br><span class="line">边:   2 条 EntityEdge(我吃了寿司、Kendra找产品经理)</span><br><span class="line">      4 条 MENTIONS 边(Episode2 → 我/Kendra/寿司/产品经理,溯源)</span><br></pre></td></tr></table></figure>
+
+<p>写完之后，新的事实已经缝合进已有的网里（Kendra 是同一个节点，摘要也更新了）。</p>
+<h3 id="2-读记忆"><a href="#2-读记忆" class="headerlink" title="2. 读记忆"></a>2. 读记忆</h3><p><strong>场景</strong>：用户问 “Kendra 最近在忙什么？”</p>
+<p><strong>① query 向量化</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">query = <span class="string">&quot;Kendra 最近在忙什么?&quot;</span></span><br><span class="line">search_vector = <span class="keyword">await</span> embedder.create([query])   <span class="comment"># → 一个向量</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>② 三路并行召回</strong></p>
+<p>三个动作同时跑，各返回一批候选：</p>
+<p><strong>比字面（BM25）</strong>——查两个全文索引：</p>
+<ul>
+<li>查边索引 <code>edge_name_and_fact</code>（索引 name+fact）：”Kendra”、”忙” 命中 <code>Kendra 在找产品经理的工作</code> 这条边</li>
+<li>查实体索引 <code>node_name_and_summary</code>（索引 name+summary）：”Kendra” 命中 Kendra 节点；而且 Kendra 的 summary 里那句”最近在找产品经理的工作”也能被”忙&#x2F;工作”匹配到</li>
+</ul>
+<p><strong>比向量（余弦）</strong>——用 fact_embedding：</p>
+<ul>
+<li>query 向量和每条事实向量算余弦 → <code>Kendra 在找产品经理的工作</code> 语义最接近，高分；<code>Kendra 喜欢 Adidas 鞋子</code> 次之</li>
+</ul>
+<p><strong>沿边走（BFS）</strong>——从命中实体出发：</p>
+<ul>
+<li>从 Kendra 节点沿 RELATES_TO 边走 1 跳 → 找到它连的所有边（喜欢Adidas、找产品经理）</li>
+</ul>
+<p><strong>③ 融合排序（RRF）</strong></p>
+<p>一条事实在越多路里排得越前，总分越高：</p>
+<table>
+<thead>
+<tr>
+<th>事实</th>
+<th>字面</th>
+<th>向量</th>
+<th>边走</th>
+<th>总排名</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kendra 在找产品经理的工作</td>
+<td>第1</td>
+<td>第1</td>
+<td>第1</td>
+<td>第1 ✅</td>
+</tr>
+<tr>
+<td>Kendra 喜欢 Adidas 鞋子</td>
+<td>第2</td>
+<td>第2</td>
+<td>第2</td>
+<td>第2</td>
+</tr>
+<tr>
+<td>我吃了寿司</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>不返回</td>
+</tr>
+</tbody></table>
+<p><strong>④ 返回结构化结果</strong></p>
+<p>输出：一个 SearchResults 对象：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">SearchResults(</span><br><span class="line">    edges=[</span><br><span class="line">        EntityEdge(fact=&quot;Kendra 在找产品经理的工作&quot;, valid_at=&quot;2026-08-13&quot;, invalid_at=None),</span><br><span class="line">        EntityEdge(fact=&quot;Kendra 喜欢 Adidas 鞋子&quot;,     valid_at=&quot;2026-03-01&quot;, invalid_at=None),</span><br><span class="line">    ],</span><br><span class="line">    nodes=[</span><br><span class="line">        EntityNode(name=&quot;Kendra&quot;, summary=&quot;喜欢运动鞋的女生,最近在找产品经理的工作&quot;),</span><br><span class="line">    ],</span><br><span class="line">    episodes=[Episode1, Episode2],</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>组装给最终 LLM 的上下文（search_results_to_context_string）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">&lt;FACTS&gt;</span><br><span class="line">  &#123;&quot;fact&quot;: &quot;Kendra 在找产品经理的工作&quot;, &quot;valid_at&quot;: &quot;2026-08-13&quot;, &quot;invalid_at&quot;: &quot;Present&quot;&#125;</span><br><span class="line">  &#123;&quot;fact&quot;: &quot;Kendra 喜欢 Adidas 鞋子&quot;, &quot;valid_at&quot;: &quot;2026-03-01&quot;, &quot;invalid_at&quot;: &quot;Present&quot;&#125;</span><br><span class="line">&lt;/FACTS&gt;</span><br><span class="line">&lt;ENTITIES&gt;</span><br><span class="line">  &#123;&quot;entity_name&quot;: &quot;Kendra&quot;, &quot;summary&quot;: &quot;喜欢运动鞋的女生,最近在找产品经理的工作&quot;&#125;</span><br><span class="line">&lt;/ENTITIES&gt;</span><br></pre></td></tr></table></figure>
+
+<p>Agent 拿这个 context，就能回答：”Kendra 最近在找产品经理的工作，她之前还提到喜欢 Adidas 的鞋子。”</p>
+<h3 id="3-记忆的形态"><a href="#3-记忆的形态" class="headerlink" title="3. 记忆的形态"></a>3. 记忆的形态</h3><p>Graphiti 的”记忆”不是一段段文本，而是一张**”带时间的属性图”**——它由「实体、带时间窗口的事实、原始对话」三层编织而成，每件事都记着”何时为真”和”从哪听来的”。</p>
+<p><strong>一、记忆的完整形态：5 类节点 + 5 类边</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">            ┌─────────────────────────┐</span><br><span class="line">            │   Saga(叙事线)           │  &quot;一条时间线&quot;</span><br><span class="line">            └──────────┬──────────────┘</span><br><span class="line">                  HAS_EPISODE ↓</span><br><span class="line">            ┌─────────────────────────┐</span><br><span class="line">            │   Episodic(原始对话)     │  &quot;当初怎么知道的&quot;</span><br><span class="line">            └──────────┬──────────────┘</span><br><span class="line">                  MENTIONS ↓</span><br><span class="line">┌───────────────────────────────────────────┐</span><br><span class="line">│  Entity(实体) ──RELATES_TO──&gt; Entity(实体) │  &quot;记住的事实&quot;</span><br><span class="line">└──────────┬────────────────────────────────┘</span><br><span class="line">      HAS_MEMBER ↓</span><br><span class="line">┌─────────────────────────┐</span><br><span class="line">│   Community(社区)        │  &quot;同一圈子的人/物&quot;</span><br><span class="line">└─────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>五种节点对应”记忆”的五个不同部分：</p>
+<table>
+<thead>
+<tr>
+<th>节点类型</th>
+<th>记忆隐喻</th>
+<th>存什么关键字段</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EntityNode</td>
+<td>你记住的”人&#x2F;物&#x2F;概念”</td>
+<td>name、name_embedding、summary（动态简介）、attributes（自定义属性）</td>
+</tr>
+<tr>
+<td>EntityEdge</td>
+<td>你记住的”事实”</td>
+<td>fact（一句话事实）、fact_embedding、valid_at&#x2F;invalid_at（时间窗口）、episodes（来源）</td>
+</tr>
+<tr>
+<td>EpisodicNode</td>
+<td>“当初怎么知道的”</td>
+<td>content（原文）、valid_at（发生时间）</td>
+</tr>
+<tr>
+<td>CommunityNode</td>
+<td>“同一圈子的人”</td>
+<td>summary（群体摘要）</td>
+</tr>
+<tr>
+<td>SagaNode</td>
+<td>“一条叙事时间线”</td>
+<td>summary、first&#x2F;last_episode_uuid</td>
+</tr>
+</tbody></table>
+<p>五种边就是把这些节点连起来的关系：</p>
+<table>
+<thead>
+<tr>
+<th>边</th>
+<th>关系类型</th>
+<th>连接</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EntityEdge</td>
+<td>RELATES_TO</td>
+<td>实体→实体</td>
+<td>知识本身</td>
+</tr>
+<tr>
+<td>EpisodicEdge</td>
+<td>MENTIONS</td>
+<td>对话→实体</td>
+<td>溯源（这事实哪段话提的）</td>
+</tr>
+<tr>
+<td>CommunityEdge</td>
+<td>HAS_MEMBER</td>
+<td>社区→实体</td>
+<td>归类</td>
+</tr>
+<tr>
+<td>HasEpisodeEdge</td>
+<td>HAS_EPISODE</td>
+<td>叙事线→对话</td>
+<td>串时间线</td>
+</tr>
+<tr>
+<td>NextEpisodeEdge</td>
+<td>NEXT_EPISODE</td>
+<td>对话→对话</td>
+<td>先后顺序</td>
+</tr>
+</tbody></table>
+<p><strong>二、记忆的三层结构</strong></p>
+<p>这张图本质上是三层记忆，各司其职：</p>
+<p><strong>第 1 层：知识层（记住”什么”）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Entity ──RELATES_TO──&gt; Entity</span><br></pre></td></tr></table></figure>
+
+<p>这是记忆的核心。每条边都是一条带时间戳的事实：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">EntityEdge(</span><br><span class="line">    fact=&quot;Kendra 喜欢 Adidas 鞋子&quot;,</span><br><span class="line">    valid_at=&quot;2026-03-01&quot;,   # 从这天起为真</span><br><span class="line">    invalid_at=None,          # 还没失效</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>第 2 层：溯源层（记住”从哪来”）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Episodic ──MENTIONS──&gt; Entity</span><br></pre></td></tr></table></figure>
+
+<p>每条知识都能追溯到”哪段原始对话产生的”。这就是为什么 Agent 答错时能查出处、能精确删除”只由某段对话产生”的记忆。</p>
+<p><strong>第 3 层：组织层（记住”怎么归类”）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Community ──HAS_MEMBER──&gt; Entity      # 聚类:这些人是一伙的</span><br><span class="line">Saga ──HAS_EPISODE──&gt; Episodic        # 时间线:这些对话是一串故事</span><br></pre></td></tr></table></figure>
+
+<p>社区是”自动聚类”出来的抽象记忆（类似”这一堆实体是关于健身的”）；Saga 是”一条叙事线”（比如”用户和 Kendra 的这段关系史”）。</p>
+<p><strong>三、存储形态：属性图</strong></p>
+<p>物理上存进 Neo4j（FalkorDB&#x2F;Neptune）里，就是节点 + 边，每种都是一行带属性的记录。以 Kendra 为例：</p>
+<p>节点记录（Entity 表）：</p>
+<table>
+<thead>
+<tr>
+<th>uuid</th>
+<th>name</th>
+<th>summary</th>
+<th>name_embedding</th>
+<th>labels</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>a1b2</td>
+<td>Kendra</td>
+<td>喜欢运动鞋的女生,在找工作</td>
+<td>[0.02, -0.1,…]</td>
+<td>[Entity]</td>
+</tr>
+</tbody></table>
+<p>边记录（EntityEdge，即 RELATES_TO 关系）：</p>
+<table>
+<thead>
+<tr>
+<th>uuid</th>
+<th>source</th>
+<th>target</th>
+<th>name</th>
+<th>fact</th>
+<th>valid_at</th>
+<th>invalid_at</th>
+<th>fact_embedding</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>e5f6</td>
+<td>a1b2</td>
+<td>c3d4</td>
+<td>喜欢</td>
+<td>Kendra 喜欢 Adidas 鞋子</td>
+<td>2026-03-01</td>
+<td>(空)</td>
+<td>[0.05,…]</td>
+</tr>
+</tbody></table>
+<p>对话记录（Episodic 表）：</p>
+<table>
+<thead>
+<tr>
+<th>uuid</th>
+<th>content</th>
+<th>valid_at</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>p7q8</td>
+<td>“Kendra 说她喜欢 Adidas 的鞋子”</td>
+<td>2026-03-01</td>
+<td>text</td>
+</tr>
+</tbody></table>
+<p><strong>四、两个贯穿全局的”形态特征”</strong></p>
+<p><strong>① 时间融进了每条记忆</strong></p>
+<p>普通知识图谱存的是”当前快照”，Graphiti 每条事实都是一个时间区间：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Kendra 讨厌 Nike 跑鞋:  [2026-01-01 ──── 2026-03-01]  ← 已失效,但保留</span><br><span class="line">Kendra 喜欢 Adidas 鞋子: [2026-03-01 ──── 现在]        ← 有效</span><br></pre></td></tr></table></figure>
+
+<p>旧事实不删除，只是打上 invalid_at。所以记忆的形态是立体的、带历史深度的，而不是一张”此刻”的平面快照。</p>
+<p><strong>② 向量融进了记忆</strong></p>
+<ul>
+<li>实体的 name_embedding —— 用来”按名字&#x2F;语义”找到这个实体</li>
+<li>事实的 fact_embedding —— 用来”按语义”找到这条事实</li>
+<li>实体的 summary —— 用来”按描述”字面检索到实体（和 name 一起建了全文索引）</li>
+</ul>
+<p>所以每条记忆同时具备了”能被字面搜到、能被语义搜到、能被关系走到”三重可达性。</p>
+<p><strong>五、用 Kendra 收尾</strong></p>
+<p>假设 Agent 和 Kendra 聊了几次，它脑子里存的是这样一张网：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Saga(&quot;Kendra 的关系史&quot;)</span><br><span class="line">  ├─HAS_EPISODE─&gt; Episode1(&quot;她说喜欢 Adidas 的鞋&quot;) ──NEXT_EPISODE──&gt; Episode2(&quot;她说在找PM工作&quot;)</span><br><span class="line">  │                 │MENTIONS                                          │MENTIONS</span><br><span class="line">  │                 ▼                                                  ▼</span><br><span class="line">  │              Kendra ──喜欢──&gt; Adidas</span><br><span class="line">  │                 │</span><br><span class="line">  │                 └──寻找──&gt; 产品经理        (valid_at=2026-08-13)</span><br><span class="line">  │</span><br><span class="line">  └─(Kendra 的 summary 随这两次对话更新成:&quot;喜欢运动鞋的女生,最近在找产品经理工作&quot;)</span><br></pre></td></tr></table></figure>
+
+<div class="note info flat"><p><strong>一句话总结记忆形态</strong>：Graphiti 把”记忆”建模成一张三层的时序属性图——底层是带时间的事实（实体-关系-实体），中层是原始对话（溯源），顶层是社区和叙事线（组织）——存在图数据库里，每条记忆同时带时间戳、带向量、带来源，因此能回答”现在什么是真的””过去什么是真的””这是从哪来的”。</p>
+</div>
+
+<h3 id="4-成本模型"><a href="#4-成本模型" class="headerlink" title="4. 成本模型"></a>4. 成本模型</h3><p><strong>一、总览：成本分布</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>写记忆（add_episode）</td>
+<td>贵 —— 多次 LLM 调用</td>
+</tr>
+<tr>
+<td>读记忆（search）</td>
+<td>便宜 —— 基本不调 LLM，纯检索</td>
+</tr>
+</tbody></table>
+<p>这是它和 RAG 的根本成本差异：RAG 写便宜（切块存）、读贵（每次查询让 LLM 现场读一堆文本）；Graphiti 反过来，把 LLM 的成本一次性花在”写入时把知识组织好”，换取之后无数次查询的廉价。</p>
+<p><strong>二、写一次 episode 的成本明细</strong></p>
+<p>一次 add_episode 的 LLM 调用清单：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>调什么</th>
+<th>次数</th>
+<th>用什么模型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>③ 抽实体</td>
+<td>extract_nodes</td>
+<td>1 次</td>
+<td>大模型</td>
+</tr>
+<tr>
+<td>④ 实体去重</td>
+<td>dedupe_nodes</td>
+<td>0~1 次（只有疑似重复才调）</td>
+<td>大模型</td>
+</tr>
+<tr>
+<td>⑤ 抽边</td>
+<td>extract_edges</td>
+<td>1 次</td>
+<td>大模型</td>
+</tr>
+<tr>
+<td>⑥ 边解析&#x2F;失效</td>
+<td>resolve_extracted_edge</td>
+<td>每条边 1 次</td>
+<td>大模型</td>
+</tr>
+<tr>
+<td>⑦ 抽属性</td>
+<td>extract_attributes</td>
+<td>每个自定义实体 1 次</td>
+<td>small 模型</td>
+</tr>
+<tr>
+<td>⑦ 摘要</td>
+<td>extract_summaries_batch</td>
+<td>每 30 个实体 1 批</td>
+<td>small 模型</td>
+</tr>
+</tbody></table>
+<p>外加 embedding 成本：每个实体名、每条事实各生成一个向量。</p>
+<div class="note warning flat"><p><strong>关键洞察：写入成本不随”文本长度”线性增长，而随”抽出多少实体 + 多少边”增长。</strong></p>
+<ul>
+<li>一段话抽出 3 个实体、2 条边 → 约 1+1+2 &#x3D; 4~5 次 LLM 调用</li>
+<li>一段话抽出 30 个实体、25 条边 → 约 1+1+25+属性+摘要 ≈ 30+ 次调用</li>
+</ul>
+<p>所以事实密度高、关系多的文本，写入成本陡增。边解析（resolve_extracted_edge）是最贵的部分——每条边都要单独和已有边比对一次。</p>
+</div>
+
+<p><strong>三、读一次 query 的成本</strong></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>query 向量化</td>
+<td>1 次 embedding</td>
+</tr>
+<tr>
+<td>BM25 检索</td>
+<td>无 LLM，图数据库全文索引</td>
+</tr>
+<tr>
+<td>向量检索</td>
+<td>无 LLM，数据库算余弦</td>
+</tr>
+<tr>
+<td>BFS 遍历</td>
+<td>无 LLM，图数据库遍历</td>
+</tr>
+<tr>
+<td>RRF 融合</td>
+<td>无 LLM，纯计算</td>
+</tr>
+<tr>
+<td>cross-encoder 精排（可选）</td>
+<td>有成本：query × top-k 候选成对打分，但只对 RRF 粗排后的少量候选</td>
+</tr>
+</tbody></table>
+<p>所以读记忆默认几乎零 LLM 成本（除非开启 cross-encoder 重排），延迟在亚秒级。这就是它能支撑”高频查询”的原因。</p>
+<h2 id="项目短板"><a href="#项目短板" class="headerlink" title="项目短板"></a>项目短板</h2><h3 id="短板-1（最致命）：写重读轻，而对话是高频的"><a href="#短板-1（最致命）：写重读轻，而对话是高频的" class="headerlink" title="短板 1（最致命）：写重读轻，而对话是高频的"></a>短板 1（最致命）：写重读轻，而对话是高频的</h3><div class="note danger flat"><p>一次 add_episode 要做 5~30+ 次 LLM 调用（抽实体、抽边、每条边解析、摘要），延迟秒级。</p>
+<p>而 dating app 里，真人和数字人每条消息都是一次写入。这意味着：</p>
+<ul>
+<li><strong>成本爆炸</strong>：一天几十轮对话，每轮多条消息，LLM 账单会非常吓人</li>
+<li><strong>延迟不可接受</strong>：对话是实时的，用户发一句”我今天好难过”，你不能等 2 秒（几次 LLM 往返）才让数字人回应</li>
+<li><strong>架构矛盾</strong>：Graphiti 假设”写入不那么频繁、查询很频繁”，dating 恰恰是”写入极高频、每次写入都要即时消费”</li>
+</ul>
+<p>这是根本性的错配，不是调参能解决的。要么异步批量写入（牺牲实时性，数字人刚聊完不记得），要么接受高昂成本。</p>
+</div>
+
+<h3 id="短板-2：记忆粒度错位——它记”事实”，不记”情感、语气、原话”"><a href="#短板-2：记忆粒度错位——它记”事实”，不记”情感、语气、原话”" class="headerlink" title="短板 2：记忆粒度错位——它记”事实”，不记”情感、语气、原话”"></a>短板 2：记忆粒度错位——它记”事实”，不记”情感、语气、原话”</h3><p>Graphiti 的核心动作是把对话抽取成结构化事实：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&quot;我今天好难过,感觉全世界都抛弃我了&quot;</span><br><span class="line">  → 抽取成: 用户 --感到--&gt; 难过   (干巴巴的一条事实)</span><br></pre></td></tr></table></figure>
+
+<p>但 dating 场景真正需要记住的，恰恰是抽取过程中丢失掉的东西：</p>
+<ul>
+<li><strong>原话</strong>：她说过的那句”你是我唯一的光”——需要能原样调出来，不是被抽象成”表达爱意”</li>
+<li><strong>语气&#x2F;情绪</strong>：这句话是撒娇、是认真、还是哽咽说的</li>
+<li><strong>氛围&#x2F;暧昧</strong>：关系现在处于什么状态，冷还是热</li>
+<li><strong>承诺的措辞</strong>：”我们约定下周见面”这种，措辞本身就重要</li>
+</ul>
+<div class="note warning flat"><p>Graphiti 的 summary 是<strong>有损压缩</strong>，实体摘要会把几十条情感事实压成一句”用户情绪敏感”。情感细节、原话、语气，都在抽取和摘要里被抹平了。它适合记”用户喜欢什么品牌”，不适合记”用户此刻的心理状态和你们之间的暧昧细节”。</p>
+</div>
+
+<h3 id="短板-3：去重合并可能”张冠李戴”"><a href="#短板-3：去重合并可能”张冠李戴”" class="headerlink" title="短板 3：去重合并可能”张冠李戴”"></a>短板 3：去重合并可能”张冠李戴”</h3><p>dating 对话里人名、昵称、代称极多：”他””那个人””我前任””宝宝””她”。</p>
+<p>Graphiti 靠”向量粗筛 + LLM 精判”判断”是不是同一个实体”。在 dating 场景，指代消解极难：</p>
+<ul>
+<li>用户说”他”——指的是数字人？还是她现实里的某个男生？还是前任？</li>
+<li>把”前男友”和”现男友”合并成一个节点 &#x3D; 记忆被污染，且这种污染很难发现和修复</li>
+</ul>
+<div class="note danger flat"><p>实体去重一旦出错，后果比 RAG 严重得多——RAG 顶多召回错了片段，这里是<strong>直接污染了图的结构</strong>。</p>
+</div>
+
+<h2 id="启发"><a href="#启发" class="headerlink" title="启发"></a>启发</h2><h3 id="启发-1：记忆的标签很重要，不能只是记一个内容"><a href="#启发-1：记忆的标签很重要，不能只是记一个内容" class="headerlink" title="启发 1：记忆的标签很重要，不能只是记一个内容"></a>启发 1：记忆的标签很重要，不能只是记一个内容</h3><p><strong>记忆必须带”出处 + 时间”（Episode 溯源）</strong></p>
+<p>Graphiti 把”原始对话”当成一等公民存进图，每条事实都能追溯到”哪段对话说的”。这是 dating 记忆系统最该抄走的一点。</p>
+<p>因为 dating 场景最怕的就是”张冠李戴”和”记错语境”——“她说想见面”这句话，是什么时候、什么语气、什么上下文说的，决定了数字人该怎么回应。</p>
+<div class="note success flat"><p><strong>落地：每条记忆都挂上 {原文, 时间戳, 上下文来源}。</strong> 宁可多存，不可只存”用户想见面”这条干巴巴的抽象——抽象是死的，出处是活的。</p>
+</div>
+
+<p><strong>记忆要有”时间深度”（失效而非删除）</strong></p>
+<p>Graphiti 用 valid_at&#x2F;invalid_at 记事实的时间窗口，旧事实不删、标记失效。</p>
+<p>dating 记忆的核心恰恰是”变化”：”她以前喜欢爬山，最近不爱提了””关系从热络到冷淡”。只存”当前状态”会丢掉这段演变轨迹，而演变轨迹本身就是最宝贵的记忆。</p>
+<div class="note success flat"><p><strong>落地：记录偏好、情绪、关系状态的”变化历史”，而不是覆盖。</strong> 回答”她最近和三个月前有什么不同”应该变成一等能力。</p>
+</div>
+
+<h3 id="启发-2：去重合并做的时候要考虑清楚"><a href="#启发-2：去重合并做的时候要考虑清楚" class="headerlink" title="启发 2：去重合并做的时候要考虑清楚"></a>启发 2：去重合并做的时候要考虑清楚</h3><p><strong>去重合并要”谨慎”，不是”激进”</strong></p>
+<p>Graphiti 靠向量 + LLM 把”疑似同一实体”合并。dating 场景人名&#x2F;昵称&#x2F;代称极多，合并错了会污染记忆且难发现。</p>
+<div class="note success flat"><p><strong>落地：借鉴它的”分层判断”（先便宜过滤再昂贵精判），但默认策略改成”存疑就分开”。</strong> 宁可有”宝宝”和”她”两个节点、事后用规则合并，也不要把”前男友”和”现男友”误合成一个。</p>
+</div>
+
+<h2 id="补充：BM25-原理"><a href="#补充：BM25-原理" class="headerlink" title="补充：BM25 原理"></a>补充：BM25 原理</h2><h3 id="一、Graphiti-在哪用-BM25"><a href="#一、Graphiti-在哪用-BM25" class="headerlink" title="一、Graphiti 在哪用 BM25"></a>一、Graphiti 在哪用 BM25</h3><p>在检索阶段。整个检索是三个动作并行，BM25 是其中一个（”比字面”）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">query</span><br><span class="line"> ├─ ① 比字面(全文检索 + BM25 排序)   ← 这一路就是 BM25</span><br><span class="line"> ├─ ② 比向量(余弦相似度)</span><br><span class="line"> └─ ③ 沿边走(BFS 图遍历)</span><br><span class="line">        │</span><br><span class="line">        └─ 三路结果 RRF 融合排序 → 返回 top-k 事实边</span><br></pre></td></tr></table></figure>
+
+<p>具体针对的是事实边（EntityEdge）。建库时（build_indices_and_constraints）给边建了一个全文索引 <code>edge_name_and_fact</code>，索引的是每条边的 name（关系名）和 fact（事实文本）两个字段。</p>
+<h3 id="二、Graphiti-具体怎么用（完整链路）"><a href="#二、Graphiti-具体怎么用（完整链路）" class="headerlink" title="二、Graphiti 具体怎么用（完整链路）"></a>二、Graphiti 具体怎么用（完整链路）</h3><p><strong>写入阶段（建索引，提前做好）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">每条事实边.fact 文本(&quot;Kendra 喜欢 Adidas 鞋子&quot;)</span><br><span class="line">  → 分词 → [Kendra, 喜欢, Adidas, 鞋子]</span><br><span class="line">  → 填倒排表:每个词后面追加 &quot;这条边 id + 这个词出现几次&quot;</span><br><span class="line">  → 同时更新全局统计:总文档数 N、每个词的文档频率 df、平均长度 avgdl</span><br></pre></td></tr></table></figure>
+
+<p><strong>查询阶段（检索时）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">用户 query &quot;Kendra 喜欢什么鞋&quot;</span><br><span class="line">  → lucene_sanitize() 转义特殊字符(防止破坏 Lucene 语法)</span><br><span class="line">  → fulltext_query() 拼成 Lucene 查询串 + group_id 过滤</span><br><span class="line">  → 发 Cypher: CALL db.index.fulltext.queryRelationships(&quot;edge_name_and_fact&quot;, $query)</span><br><span class="line">  → 底层查倒排表:分词 → 取每个词的 posting list → 合并候选</span><br><span class="line">  → 对每条候选事实套 BM25 公式打分</span><br><span class="line">  → 按 score 降序返回最相关的几条事实边</span><br></pre></td></tr></table></figure>
+
+<h3 id="三、原理（两层）"><a href="#三、原理（两层）" class="headerlink" title="三、原理（两层）"></a>三、原理（两层）</h3><p><strong>第 1 层：全文索引 &#x3D; 倒排索引</strong></p>
+<p>把”文本”预先拆成”词 → 出现在哪些文档、各几次”的一张倒排表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&quot;Kendra&quot; → [边1:2次] [边5:1次] [边9:3次]</span><br><span class="line">&quot;Adidas&quot; → [边1:1次] [边3:2次]</span><br></pre></td></tr></table></figure>
+
+<p>好处：查询时不用扫全库，直接查”哪些事实含这个词”，一步缩小到候选集合。</p>
+<p><strong>第 2 层：BM25 &#x3D; 给候选打分排序</strong></p>
+<p>对每条候选事实 D，算：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">score(D,Q) = Σ_每个查询词  IDF(词) × TF部分(词频 + 长度归一化)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>IDF（逆文档频率）</strong>：词越稀有 → 分越高。Kendra 只在 5 条事实里出现，值钱；”喜欢”在 8 万条里出现，不值钱。</li>
+<li><strong>TF（词频）</strong>：这词在这条事实里出现越多 → 分越高，但有饱和、且长文档会被惩罚（长度归一化）。</li>
+</ul>
+<p>为什么能”直接”排序：倒排表里已经存好了词频 f(qi,D)，索引级存好了总文档数 N、文档频率 n(qi)、平均长度 avgdl —— BM25 公式需要的全部数据都在表里，查表 + 套公式即可，不用现算。</p>
+<div class="note info flat"><p><strong>一句话总结</strong>：Graphiti 把每条事实边当一篇”文档”，建库时用倒排索引存好”词 → 出现位置+词频”；查询时把用户的问题也分词，查倒排表筛出含相关词的事实，再用 BM25 公式（稀有词加分、高频词饱和、短文档不吃亏）给它们打分排序，返回最相关的事实边。</p>
+<p>它在整个检索里扮演的角色：提供”字面精确匹配”这一路，和”向量语义匹配””图遍历关系推理”互补——因为有的查询靠字面就能命中（人名、专有名词），有的靠语义（换个说法），有的靠关系（多跳推理）。三路合起来，就是 Graphiti 说的”混合检索”。</p>
+</div>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io">szq</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io/2026/08/13/graphiti-memory-graph/">https://xiaosuzq.github.io/2026/08/13/graphiti-memory-graph/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://xiaosuzq.github.io" target="_blank">SZQ 的技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F/">记忆系统</a><a class="post-meta__tags" href="/tags/%E7%9F%A5%E8%AF%86%E5%9B%BE%E8%B0%B1/">知识图谱</a><a class="post-meta__tags" href="/tags/Graphiti/">Graphiti</a></div><div class="post-share"><div class="social-share" data-image="/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">dating app记忆系统设计调研</div></div><div class="info-2"><div class="info-item-1">子文章目录本系列是 dating app 记忆系统设计的调研，每个开源项目单独成文：  Graphiti走了一遭：时序知识图谱，离”陪聊记忆”还差多远 Mem0 —— 见本文  调研目的 为 dating app 的记忆系统的设计提供参考 学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？  Dating app 背景 形态：数字人陪聊 BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。  关系养成型 初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。  反导流（双向） DH 不主动引导用户离开；同时检测并阻断用户发的联系方式。后果很关键：所有互动只能沉淀在平台自己的库里 → 对话历史无限增长、且永不流失。  “像真人”是体验命门 DH 能不能记住久远的细节、说话前后一致、有自己的生活，直接决定沉浸感——这是产品的核心竞争力，不是可选项。  实时 + 低成本 聊天要快（延迟敏感），成本要可控。   总结   由哪个特点 推出什么条件 一句话    关系养成 + 像真人 精确一致性 DH 说过的必须记得住，不能自相矛盾（...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-13</div><div class="info-item-2">dating app记忆系统设计调研</div></div><div class="info-2"><div class="info-item-1">子文章目录本系列是 dating app 记忆系统设计的调研，每个开源项目单独成文：  Graphiti走了一遭：时序知识图谱，离”陪聊记忆”还差多远 Mem0 —— 见本文  调研目的 为 dating app 的记忆系统的设计提供参考 学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？  Dating app 背景 形态：数字人陪聊 BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。  关系养成型 初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。  反导流（双向） DH 不主动引导用户离开；同时检测并阻断用户发的联系方式。后果很关键：所有互动只能沉淀在平台自己的库里 → 对话历史无限增长、且永不流失。  “像真人”是体验命门 DH 能不能记住久远的细节、说话前后一致、有自己的生活，直接决定沉浸感——这是产品的核心竞争力，不是可选项。  实时 + 低成本 聊天要快（延迟敏感），成本要可控。   总结   由哪个特点 推出什么条件 一句话    关系养成 + 像真人 精确一致性 DH 说过的必须记得住，不能自相矛盾（...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">szq</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">3</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.</span> <span class="toc-text">项目定位</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%9F%A5%E8%AF%86%E5%9B%BE%E8%B0%B1-vs-%E4%BC%A0%E7%BB%9F-RAG"><span class="toc-number">2.</span> <span class="toc-text">知识图谱 vs 传统 RAG</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8C%BA%E5%88%AB%E4%B8%80%E5%8F%A5%E8%AF%9D"><span class="toc-number">2.1.</span> <span class="toc-text">核心区别一句话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB%E5%AF%B9%E7%85%A7"><span class="toc-number">2.2.</span> <span class="toc-text">本质区别对照</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B7%E4%BD%93%E6%8B%86%E5%BC%80%E8%AF%B4"><span class="toc-number">2.3.</span> <span class="toc-text">具体拆开说</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%92%8C-GraphRAG-%E6%AF%94%E5%91%A2%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">和 GraphRAG 比呢？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E8%8C%83%E5%BC%8F"><span class="toc-number">3.</span> <span class="toc-text">项目范式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E6%A0%B8%E5%BF%83%E8%AE%BE%E8%AE%A1"><span class="toc-number">4.</span> <span class="toc-text">项目核心设计</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%86%99%E8%AE%B0%E5%BF%86"><span class="toc-number">4.1.</span> <span class="toc-text">1. 写记忆</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E8%AF%BB%E8%AE%B0%E5%BF%86"><span class="toc-number">4.2.</span> <span class="toc-text">2. 读记忆</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%AE%B0%E5%BF%86%E7%9A%84%E5%BD%A2%E6%80%81"><span class="toc-number">4.3.</span> <span class="toc-text">3. 记忆的形态</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E6%88%90%E6%9C%AC%E6%A8%A1%E5%9E%8B"><span class="toc-number">4.4.</span> <span class="toc-text">4. 成本模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%9F%AD%E6%9D%BF"><span class="toc-number">5.</span> <span class="toc-text">项目短板</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-1%EF%BC%88%E6%9C%80%E8%87%B4%E5%91%BD%EF%BC%89%EF%BC%9A%E5%86%99%E9%87%8D%E8%AF%BB%E8%BD%BB%EF%BC%8C%E8%80%8C%E5%AF%B9%E8%AF%9D%E6%98%AF%E9%AB%98%E9%A2%91%E7%9A%84"><span class="toc-number">5.1.</span> <span class="toc-text">短板 1（最致命）：写重读轻，而对话是高频的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-2%EF%BC%9A%E8%AE%B0%E5%BF%86%E7%B2%92%E5%BA%A6%E9%94%99%E4%BD%8D%E2%80%94%E2%80%94%E5%AE%83%E8%AE%B0%E2%80%9D%E4%BA%8B%E5%AE%9E%E2%80%9D%EF%BC%8C%E4%B8%8D%E8%AE%B0%E2%80%9D%E6%83%85%E6%84%9F%E3%80%81%E8%AF%AD%E6%B0%94%E3%80%81%E5%8E%9F%E8%AF%9D%E2%80%9D"><span class="toc-number">5.2.</span> <span class="toc-text">短板 2：记忆粒度错位——它记”事实”，不记”情感、语气、原话”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-3%EF%BC%9A%E5%8E%BB%E9%87%8D%E5%90%88%E5%B9%B6%E5%8F%AF%E8%83%BD%E2%80%9D%E5%BC%A0%E5%86%A0%E6%9D%8E%E6%88%B4%E2%80%9D"><span class="toc-number">5.3.</span> <span class="toc-text">短板 3：去重合并可能”张冠李戴”</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%90%AF%E5%8F%91"><span class="toc-number">6.</span> <span class="toc-text">启发</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8F%91-1%EF%BC%9A%E8%AE%B0%E5%BF%86%E7%9A%84%E6%A0%87%E7%AD%BE%E5%BE%88%E9%87%8D%E8%A6%81%EF%BC%8C%E4%B8%8D%E8%83%BD%E5%8F%AA%E6%98%AF%E8%AE%B0%E4%B8%80%E4%B8%AA%E5%86%85%E5%AE%B9"><span class="toc-number">6.1.</span> <span class="toc-text">启发 1：记忆的标签很重要，不能只是记一个内容</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8F%91-2%EF%BC%9A%E5%8E%BB%E9%87%8D%E5%90%88%E5%B9%B6%E5%81%9A%E7%9A%84%E6%97%B6%E5%80%99%E8%A6%81%E8%80%83%E8%99%91%E6%B8%85%E6%A5%9A"><span class="toc-number">6.2.</span> <span class="toc-text">启发 2：去重合并做的时候要考虑清楚</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%A1%A5%E5%85%85%EF%BC%9ABM25-%E5%8E%9F%E7%90%86"><span class="toc-number">7.</span> <span class="toc-text">补充：BM25 原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81Graphiti-%E5%9C%A8%E5%93%AA%E7%94%A8-BM25"><span class="toc-number">7.1.</span> <span class="toc-text">一、Graphiti 在哪用 BM25</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Graphiti-%E5%85%B7%E4%BD%93%E6%80%8E%E4%B9%88%E7%94%A8%EF%BC%88%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF%EF%BC%89"><span class="toc-number">7.2.</span> <span class="toc-text">二、Graphiti 具体怎么用（完整链路）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%8E%9F%E7%90%86%EF%BC%88%E4%B8%A4%E5%B1%82%EF%BC%89"><span class="toc-number">7.3.</span> <span class="toc-text">三、原理（两层）</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/graphiti-memory-graph/" title="Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远">Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远</a><time datetime="2026-08-13T09:30:00.000Z" title="发表于 2026-08-13 17:30:00">2026-08-13</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研">dating app记忆系统设计调研</a><time datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/hello-world/" title="Hello World">Hello World</a><time datetime="2026-08-13T06:06:10.140Z" title="发表于 2026-08-13 14:06:10">2026-08-13</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By szq</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.2</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
