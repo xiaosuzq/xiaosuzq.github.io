@@ -1,0 +1,690 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot; | SZQ 的技术博客</title><meta name="author" content="szq"><meta name="copyright" content="szq"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 eros-engine。  项目定位一个开源的 Rust 引擎，给「AI 数字人陪聊」产品提供有状态的核心——让一个数字人能跨上千轮、跨数月地「记住同一个人、关系持续演进、始终人设在线」。 项目范式架构形态：模块化 Monorepo + 严格向下依赖这是一个 Cargo workspace，四个 crate，依赖方向只允">
+<meta property="og:type" content="article">
+<meta property="og:title" content="eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot;">
+<meta property="og:url" content="https://xiaosuzq.github.io/2026/08/15/eros-engine-layered-memory/index.html">
+<meta property="og:site_name" content="SZQ 的技术博客">
+<meta property="og:description" content="本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 eros-engine。  项目定位一个开源的 Rust 引擎，给「AI 数字人陪聊」产品提供有状态的核心——让一个数字人能跨上千轮、跨数月地「记住同一个人、关系持续演进、始终人设在线」。 项目范式架构形态：模块化 Monorepo + 严格向下依赖这是一个 Cargo workspace，四个 crate，依赖方向只允">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png">
+<meta property="article:published_time" content="2026-08-15T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-15T01:32:16.551Z">
+<meta property="article:author" content="szq">
+<meta property="article:tag" content="Rust">
+<meta property="article:tag" content="eros-engine">
+<meta property="article:tag" content="记忆系统">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://xiaosuzq.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "eros-engine的分层记忆：让AI记住\"人\"，而不只是\"话\"",
+  "url": "https://xiaosuzq.github.io/2026/08/15/eros-engine-layered-memory/",
+  "image": "https://xiaosuzq.github.io/img/butterfly-icon.png",
+  "datePublished": "2026-08-15T04:00:00.000Z",
+  "dateModified": "2026-08-15T01:32:16.551Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "szq",
+      "url": "https://xiaosuzq.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://xiaosuzq.github.io/2026/08/15/eros-engine-layered-memory/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'eros-engine的分层记忆：让AI记住"人"，而不只是"话"',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SZQ 的技术博客</span></a><a class="nav-page-title" href="/"><span class="site-name">eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot;</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot;</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-15T04:00:00.000Z" title="发表于 2026-08-15 12:00:00">2026-08-15</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-15T01:32:16.551Z" title="更新于 2026-08-15 09:32:16">2026-08-15</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%A0%94/">记忆系统调研</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%A0%94/eros-engine/">eros-engine</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p>本文是《<a href="/2026/08/13/dating-app-memory-system/">dating app记忆系统设计调研</a>》的子文章，分析对象为开源项目 eros-engine。</p>
+</blockquote>
+<h2 id="项目定位"><a href="#项目定位" class="headerlink" title="项目定位"></a>项目定位</h2><p>一个开源的 Rust 引擎，给「AI 数字人陪聊」产品提供有状态的核心——让一个数字人能跨上千轮、跨数月地「记住同一个人、关系持续演进、始终人设在线」。</p>
+<h2 id="项目范式"><a href="#项目范式" class="headerlink" title="项目范式"></a>项目范式</h2><h3 id="架构形态：模块化-Monorepo-严格向下依赖"><a href="#架构形态：模块化-Monorepo-严格向下依赖" class="headerlink" title="架构形态：模块化 Monorepo + 严格向下依赖"></a>架构形态：模块化 Monorepo + 严格向下依赖</h3><p>这是一个 Cargo workspace，四个 crate，依赖方向只允许向下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────┐</span><br><span class="line">│  eros-engine-server   薄编排壳（HTTP + 中间件 + pipeline） │</span><br><span class="line">│        │ 依赖全部三个                                │</span><br><span class="line">├────────┴───────────────┬─────────────────────────────┤</span><br><span class="line">│  eros-engine-llm       │  eros-engine-store          │</span><br><span class="line">│  模型访问（OpenRouter/Voyage）│  持久化（sqlx + pgvector） │</span><br><span class="line">│        │ 两者都只依赖 core │                          │</span><br><span class="line">├────────┴───────────────┴─────────────────────────────┤</span><br><span class="line">│  eros-engine-core      纯领域内核（零 I/O / 零 async / 零 DB）│</span><br><span class="line">└─────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>范式关键词：<strong>「纯领域内核 + 接口隔离的集成 + 薄编排壳」</strong>。</p>
+<ul>
+<li>core 不依赖任何框架、不做任何 I&#x2F;O——affinity、ghost、PDE、persona 这些”逻辑大脑”是纯函数。</li>
+<li>llm 和 store 是两个独立、可替换的集成层（换 embedder 是配置变更，换向量库是换 store crate）。</li>
+<li>server 只负责”粘合”——把请求接进来、编排一下、分派出去。</li>
+</ul>
+<p>这个形态的直接收益：core + llm + store 可以当库被别的产品直接 <code>cargo add</code> 复用，不用继承它的 HTTP 形状、Postgres schema、JWT auth。</p>
+<h2 id="项目核心设计"><a href="#项目核心设计" class="headerlink" title="项目核心设计"></a>项目核心设计</h2><h3 id="1-写记忆过程"><a href="#1-写记忆过程" class="headerlink" title="1. 写记忆过程"></a>1. 写记忆过程</h3><p>写记忆发生在<strong>回复已经发给用户之后</strong>——引擎不会让「记账」耽误用户看到回复。整个写记忆一共三条线。</p>
+<p><strong>先交代背景：一次聊天的完整闭环</strong></p>
+<p>用户发一句话给数字人，引擎干的事是这样的：</p>
+<ol>
+<li>用户那句话先存进 chat_messages 表（原始文字，不加工）。</li>
+<li>引擎生成数字人的回复，回复也存进 chat_messages 表。</li>
+<li>回复用 SSE 流推给用户。</li>
+<li>到这里，用户已经看到回复了。之后，引擎才在后台启动一个任务（post_process），去”记账”——写记忆就是其中一件事。</li>
+</ol>
+<div class="note info flat"><p>所以「写记忆」永远发生在第 4 步，是<strong>异步的、滞后的、不阻塞回复的</strong>。</p>
+</div>
+
+<p><strong>线一：实时写入（每一轮都做，原样存）</strong></p>
+<p>这条线做的事最简单：把用户这句话原封不动地变成一条记忆，不做任何理解、不分类。</p>
+<p>第 1 步：判断这一轮值不值得记。要同时满足两个条件才记：</p>
+<ul>
+<li>用户这句话不是空的（用户真的说了点什么）；</li>
+<li>数字人至少回了一句非空的话。</li>
+</ul>
+<p>第 2 步：<strong>只取「用户说的话」，不取数字人的话</strong>。</p>
+<div class="note warning flat"><p>这里有个铁律：<strong>只记用户说的，绝不记数字人自己说的。</strong></p>
+<p>原因是踩过坑的（issue #113）：如果数字人的话也存进记忆库，下一轮聊天时会把它当「记忆」召回、喂进数字人自己的提示词里——数字人看到”自己以前说过这句话”，就会一遍遍重复，回复直接卡死成一句车轱辘话。</p>
+</div>
+
+<p>第 3 步：把这句话变成一个「向量」。调 embedding 服务（默认 Voyage），把用户这句话变成一串 512 个小数——这串数字就是”语义指纹”。</p>
+<p>第 4 步：把这句话写进两层（写两次）。同一句话、同一个向量，写进同一张表两次，区别在于一个字段 instance_id：</p>
+<table>
+<thead>
+<tr>
+<th>写第几层</th>
+<th>instance_id 填什么</th>
+<th>存的内容</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>relationship 层</td>
+<td>这个数字人的编号</td>
+<td>用户：我养了一只猫</td>
+<td>只有这个数字人能想起</td>
+</tr>
+<tr>
+<td>profile 层</td>
+<td>NULL（空）</td>
+<td>我养了一只猫</td>
+<td>所有数字人都能想起</td>
+</tr>
+</tbody></table>
+<p>注意 relationship 层会在前面加一个 <code>用户：</code> 前缀——这样将来召回时，数字人能看懂”这是用户说过的话”。</p>
+<p>第 5 步：落库。最终插入的这条记录长这样（companion_memories 表）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">session_id   = 这个会话的 id</span><br><span class="line">user_id      = 用户的 id</span><br><span class="line">instance_id  = NULL 或 数字人 id（取决于哪一层）</span><br><span class="line">content      = &quot;用户：我养了一只猫&quot;（或原文）</span><br><span class="line">embedding    = [0.12, -0.34, … 共 512 个小数]</span><br><span class="line">category     = NULL（这层不分类）</span><br><span class="line">metadata     = NULL（这层不带附加信息）</span><br></pre></td></tr></table></figure>
+
+<p>它的定位是「原样埋点」——便宜、快、每轮都做，保证”用户说的每句话都有机会被将来想起”，但它不做任何理解。</p>
+<p><strong>线二：后台提炼（空闲才做，用 LLM 理解）</strong></p>
+<p>线一只是”原样存”，不知道哪句话重要。真正该长期记住的是”他是做设计的、养了只猫、上个月换工作”这种稳定事实。这些靠线二提炼。</p>
+<p>线二有个名字叫 <strong>dreaming-lite（”做梦”）</strong>，是后台定时任务，每隔一段时间扫一次。</p>
+<p>第 1 步：找”该被提炼的会话”。找同时满足两个条件的会话：</p>
+<ul>
+<li>空闲了：last_active_at 过了阈值；</li>
+<li>还没被提炼过：classified_at 为空。</li>
+</ul>
+<p>找到后用 <code>FOR UPDATE SKIP LOCKED</code> 一次性”抢”一批出来——保证多实例不会重复处理同一个会话。</p>
+<p>第 2 步：把会话聊天记录拼成”对话流水”（转录）。按时间取所有消息，每条标上说话人：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">用户：你好呀</span><br><span class="line">AI：嗨，今天过得怎么样</span><br><span class="line">用户：还行，刚下班，我养了一只猫</span><br><span class="line">AI：真的吗，猫叫什么名字</span><br><span class="line">用户：叫咪咪，特别粘人</span><br></pre></td></tr></table></figure>
+
+<p>第 3 步：让 LLM 挑出”值得记的事”（memory_extraction 任务），返回结构化 JSON：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;memories&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span> <span class="attr">&quot;content&quot;</span><span class="punctuation">:</span> <span class="string">&quot;用户养了一只叫咪咪的猫&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;category&quot;</span><span class="punctuation">:</span> <span class="string">&quot;fact&quot;</span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span> <span class="attr">&quot;content&quot;</span><span class="punctuation">:</span> <span class="string">&quot;用户喜欢猫、觉得猫粘人&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;category&quot;</span><span class="punctuation">:</span> <span class="string">&quot;preference&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>第 4 步：把类别「规范化」到固定词表。只保留五个合法类别——fact（事实）、preference（偏好）、event（事件）、emotion（情绪）、relation（关系）。LLM 编了别的（比如 “opinion”），一律归成 fact。</p>
+<p>第 5 步：每条候选变向量，写进「profile 层」。因为”关于用户这个人的稳定事实”应该所有数字人共享。这条记录比线一多两个字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">content   = &quot;用户养了一只叫咪咪的猫&quot;</span><br><span class="line">category  = &quot;fact&quot;</span><br><span class="line">metadata  = &#123; &quot;domain&quot;: &quot;...&quot;, &quot;confidence&quot;: &quot;high&quot;, ... &#125;</span><br></pre></td></tr></table></figure>
+
+<p>第 6 步：盖「已处理」章（classified_at）。就算 LLM 返回垃圾（空结果、解析失败）也照样盖章——否则一个”永远提炼不出东西”的会话会卡死后台任务。</p>
+<p>它的定位是「空闲时的深度提炼」——用 LLM 把一段对话”消化”成几条稳定的、带类别的事实。</p>
+<p><strong>线三：结构化抽取（每一轮都做，但不进向量库）</strong></p>
+<p>这条线跟线一一样每轮都跑，但产出不同——它把对话”蒸馏”成一张结构化用户画像表（human_insights）。</p>
+<p>第 1 步：先抽「事实列表」（insight_extraction 第一阶段）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[&quot;用户在深圳工作&quot;, &quot;用户养猫&quot;, &quot;用户是 95 后&quot;]</span><br></pre></td></tr></table></figure>
+
+<p>第 2 步：把这些事实填进固定字段模板（第二阶段）：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span> <span class="attr">&quot;city&quot;</span><span class="punctuation">:</span> <span class="string">&quot;深圳&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;occupation&quot;</span><span class="punctuation">:</span> <span class="string">&quot;设计师&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;interests&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span><span class="string">&quot;猫&quot;</span><span class="punctuation">,</span> <span class="string">&quot;手冲咖啡&quot;</span><span class="punctuation">]</span> <span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>第 3 步：逐列写进 human_insights 表。更新讲究：</p>
+<ul>
+<li>有值的字段覆盖旧的；</li>
+<li>没值的字段保留旧的；</li>
+<li>永远不会删——画像只会越填越全。</li>
+</ul>
+<p>它的定位是「结构化画像」——不参与语义检索，是给匹配、给下游产品用的”可查询的用户档案”。</p>
+<p><strong>三条线串起来看</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">用户发消息 → 存 chat_messages → 数字人回复 → 存 chat_messages → 回复发给用户</span><br><span class="line">                                                              │</span><br><span class="line">                                    回复返回后，后台异步跑三条线（互不阻塞）：</span><br><span class="line">                                                              │</span><br><span class="line">        ┌─────────────────────────┬─────────────────────────┐</span><br><span class="line">        ▼                         ▼                         ▼</span><br><span class="line">   线一 实时写入              线三 结构化抽取            线二 后台提炼</span><br><span class="line">   每轮都做                  每轮都做                  空闲才做</span><br><span class="line">   原样埋用户的话            LLM 填画像字段            LLM 提炼事实</span><br><span class="line">   ↓                        ↓                        ↓</span><br><span class="line">   companion_memories       human_insights           companion_memories</span><br><span class="line">   (两层向量，不分类)        (typed 列，不向量)        (profile 层，带类别)</span><br></pre></td></tr></table></figure>
+
+<div class="note primary flat"><ul>
+<li>线一保证”每句话都有机会被想起”，但没理解能力；</li>
+<li>线二在线一的基础上，空闲时”消化”出稳定的、带类别的事实；</li>
+<li>线三走的是另一条路，产出的是结构化画像，不参与向量检索。</li>
+</ul>
+<p>三条线互相不抢、互不阻塞，合起来构成完整的”写记忆”。</p>
+</div>
+
+<h3 id="2-读记忆"><a href="#2-读记忆" class="headerlink" title="2. 读记忆"></a>2. 读记忆</h3><p>读记忆发生在每一轮数字人要开口回复之前——目标只有一个：让数字人”想起”这一轮该想起来的事，塞进提示词。</p>
+<p><strong>第 1 步：确定「这一轮要查什么」</strong></p>
+<p>默认用用户这一轮刚说的那句话当查询种子。如果用户发的是图片，就用图片的文字描述当查询。</p>
+<p><strong>第 2 步：确定「查多少、查哪几层」</strong></p>
+<p>请求带 <code>memory_scope</code> 开关，决定注入哪些记忆。默认 <code>neutral_and_relationship</code>：</p>
+<ul>
+<li>注入中性的画像（不含感情观、兴趣这些亲密字段）；</li>
+<li>注入数字人专属记忆（relationship 层）。</li>
+</ul>
+<p>关键点：这个开关只管”读不读”，不管”写不写”。就算这轮设成 none，该写的照样写进库。</p>
+<p><strong>第 3 步：把查询也变成「向量」</strong></p>
+<p>调 embedding 服务，把”我最近搬家了，好累”变成一串 512 个小数。兜底：如果开关全关或查询为空，跳过；embedding 失败也静默降级成”什么都没想起来”，绝不让记忆问题卡住回复。</p>
+<p><strong>第 4 步：三路并行去向量库里「捞」</strong></p>
+<p>用 <code>tokio::join!</code> 同时发起三个查询：</p>
+<table>
+<thead>
+<tr>
+<th>查询</th>
+<th>内容</th>
+<th>K 值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>查询 1</td>
+<td>已分类的 profile 记忆（按类别分组捞）</td>
+<td>每类 2 条</td>
+</tr>
+<tr>
+<td>查询 2</td>
+<td>未分类的 profile 记忆（兜底）</td>
+<td>4 条</td>
+</tr>
+<tr>
+<td>查询 3</td>
+<td>relationship 专属记忆</td>
+<td>3 条</td>
+</tr>
+</tbody></table>
+<p>怎么判断”像不像”？余弦相似度，pgvector 直接排序返回前 K 条。</p>
+<div class="note warning flat"><p>一个重要的设计选择：<strong>没有”相似度门槛”</strong>。无条件返回最像的前 K 条——哪怕这 K 条都跟当前话题关系不大。好处是简单、提示词长度可控；代价是可能捞到无关的（靠后面的分组和去重缓解）。</p>
+</div>
+
+<p><strong>第 5 步：拼上结构化画像</strong></p>
+<p>把 human_insights 表的字段渲染成”基础画像”，插到所有记忆最前面。这块不经过向量检索，直接整行读出来。中性模式下会剥掉亲密字段。</p>
+<p><strong>第 6 步：跨层去重</strong></p>
+<p>同一句话可能既在 profile 层又在 relationship 层（线一写两层）。进提示词前做去重：规范化后如果两条一样，只留 profile 层那条。</p>
+<p><strong>第 7 步：渲染进提示词</strong></p>
+<p>去重后，把所有记忆渲染成带标题的文本块，塞进 system prompt：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">[基础画像]</span><br><span class="line">- 城市：深圳</span><br><span class="line">- 兴趣：猫</span><br><span class="line"></span><br><span class="line">[客观事实]</span><br><span class="line">- 用户养了一只叫咪咪的猫</span><br><span class="line">- 用户最近搬家了</span><br><span class="line"></span><br><span class="line">[偏好]</span><br><span class="line">- 用户喜欢猫、觉得猫粘人</span><br><span class="line"></span><br><span class="line">[专属记忆]</span><br><span class="line">- 用户：上次说想去看海</span><br></pre></td></tr></table></figure>
+
+<p>兜底：什么都没捞到时，填入占位文案”（刚认识，还不了解他）”，而不是空着。</p>
+<p><strong>第 8 步（顺带）：短期记忆直接塞，不检索</strong></p>
+<p>最近的聊天记录（最近 20 条原文）直接按时间顺序塞进去，不做向量检索。长期记忆管”久远的、模糊的”，短期记忆管”刚刚发生的、精确的”。</p>
+<p><strong>串起来看</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">用户这一轮说的话（或图片描述）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line"> ① 确定查什么（这句话当查询种子）</span><br><span class="line"> ② 确定查多少/查哪层（memory_scope，默认：中性画像 + 专属记忆）</span><br><span class="line"> ③ 把这句话变成向量（embed_query）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line"> ④ 三路并行语义检索（cosine 相似度，纯 top-K，无阈值）</span><br><span class="line">     ├─ 已分类 profile：按类别分组，每类取 2 条</span><br><span class="line">     ├─ 未分类 profile：兜底取 4 条</span><br><span class="line">     └─ relationship：专属记忆取 3 条</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line"> ⑤ 拼上结构化画像（human_insights 直接读，插最前面）</span><br><span class="line"> ⑥ 跨层去重（同一句话只留一条）</span><br><span class="line"> ⑦ 渲染成 [标题]\n- 条目 的文本块</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line"> 塞进 system prompt ──► 数字人带着&quot;想起来的事&quot;生成回复</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-记忆模型"><a href="#3-记忆模型" class="headerlink" title="3. 记忆模型"></a>3. 记忆模型</h3><p>记忆的数据模型核心一句话：记忆不存成一份大 JSON，而是拆成「一张向量表 + 一张结构化画像表」，前者管”模糊想起”，后者管”确定的事实”。</p>
+<p><strong>总览：三张表撑起记忆</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">               chat_sessions（会话）</span><br><span class="line">                     │ 1</span><br><span class="line">                     │ 有多个</span><br><span class="line">                     ▼</span><br><span class="line">  ┌──────────────┬──────────────────────────┐</span><br><span class="line">  │              │                          │</span><br><span class="line">chat_messages   companion_memories       (用户 × 数字人)</span><br><span class="line">(原始聊天记录)   (向量记忆，两层)          │ 1 : 1</span><br><span class="line"> 原料，不embed    语义检索用                ▼</span><br><span class="line">                                     human_insights</span><br><span class="line">                                     (结构化画像，typed 列)</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心表：companion_memories（向量记忆）</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> engine.companion_memories (</span><br><span class="line">    id           UUID <span class="keyword">PRIMARY KEY</span> <span class="keyword">DEFAULT</span> gen_random_uuid(),</span><br><span class="line">    session_id   UUID <span class="keyword">NOT NULL</span> <span class="keyword">REFERENCES</span> engine.chat_sessions(id) <span class="keyword">ON</span> <span class="keyword">DELETE</span> CASCADE,</span><br><span class="line">    user_id      UUID <span class="keyword">NOT NULL</span>,</span><br><span class="line">    instance_id  UUID,              <span class="comment">-- NULL = profile 层（跨数字人共享）</span></span><br><span class="line">    content      TEXT <span class="keyword">NOT NULL</span>,     <span class="comment">-- 记忆的文本</span></span><br><span class="line">    embedding    VECTOR(<span class="number">512</span>) <span class="keyword">NOT NULL</span>,  <span class="comment">-- 512 维向量</span></span><br><span class="line">    category     TEXT,              <span class="comment">-- fact|preference|event|emotion|relation；可空</span></span><br><span class="line">    metadata     JSONB,             <span class="comment">-- 不透明的附加元数据；可空</span></span><br><span class="line">    created_at   TIMESTAMPTZ <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> now()</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p>字段逐个讲：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>主键，自动生成</td>
+</tr>
+<tr>
+<td>session_id</td>
+<td>UUID（外键）</td>
+<td>来自哪个会话，级联删除</td>
+</tr>
+<tr>
+<td>user_id</td>
+<td>UUID</td>
+<td>属于哪个用户（记忆的隔离维度）</td>
+</tr>
+<tr>
+<td>instance_id</td>
+<td>UUID，可空</td>
+<td>数字人编号（整个数据模型的灵魂）</td>
+</tr>
+<tr>
+<td>content</td>
+<td>TEXT</td>
+<td>记忆文本，塞进提示词的就是它</td>
+</tr>
+<tr>
+<td>embedding</td>
+<td>VECTOR(512)</td>
+<td>512 维语义向量</td>
+</tr>
+<tr>
+<td>category</td>
+<td>TEXT，可空</td>
+<td>类别标签（只有”做梦”提炼的行有值）</td>
+</tr>
+<tr>
+<td>metadata</td>
+<td>JSONB，可空</td>
+<td>不透明附加信息，引擎不解析</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>时间戳</td>
+<td>创建时间</td>
+</tr>
+</tbody></table>
+<p><strong>灵魂字段：instance_id —— 用「一个字段」区分两层记忆</strong></p>
+<div class="note primary flat"><p>整个数据模型最关键的设计：不建两张表，而是用 <code>instance_id</code> 是不是 NULL，来区分两层记忆。</p>
+<ul>
+<li><code>instance_id = NULL</code> → profile 层，跨数字人共享（”用户对花生过敏”，换哪个数字人都该知道）；</li>
+<li><code>instance_id = 某个数字人的 id</code> → relationship 层，只有这个数字人能想起。</li>
+</ul>
+</div>
+
+<p>配合两个部分索引，让两层各自检索都便宜：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 只对 profile 层建索引</span></span><br><span class="line"><span class="keyword">CREATE</span> INDEX idx_memories_user_profile <span class="keyword">ON</span> engine.companion_memories(user_id) <span class="keyword">WHERE</span> instance_id <span class="keyword">IS</span> <span class="keyword">NULL</span>;</span><br><span class="line"><span class="comment">-- 只对 relationship 层建索引</span></span><br><span class="line"><span class="keyword">CREATE</span> INDEX idx_memories_session <span class="keyword">ON</span> engine.companion_memories(session_id) <span class="keyword">WHERE</span> instance_id <span class="keyword">IS</span> <span class="keyword">NOT NULL</span>;</span><br><span class="line"><span class="comment">-- 向量索引（余弦相似度）</span></span><br><span class="line"><span class="keyword">CREATE</span> INDEX idx_memories_embedding <span class="keyword">ON</span> engine.companion_memories</span><br><span class="line">    <span class="keyword">USING</span> ivfflat (embedding vector_cosine_ops) <span class="keyword">WITH</span> (lists <span class="operator">=</span> <span class="number">100</span>);</span><br></pre></td></tr></table></figure>
+
+<p>“部分索引”：索引只建在满足 WHERE 条件的那些行上，查 profile 层只扫 profile 索引，查 relationship 层只扫 relationship 索引，互不干扰。</p>
+<p><strong>两种写入器，在数据模型上怎么区分</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>raw-turn 写入的行</th>
+<th>dreaming 提炼的行</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>instance_id</td>
+<td>两层都写（NULL 和数字人 id）</td>
+<td>只写 profile 层（NULL）</td>
+</tr>
+<tr>
+<td>content</td>
+<td>用户原话（relationship 层带”用户：”前缀）</td>
+<td>LLM 提炼出的干净事实</td>
+</tr>
+<tr>
+<td>category</td>
+<td>NULL（不分类）</td>
+<td>fact&#x2F;preference&#x2F;event&#x2F;emotion&#x2F;relation</td>
+</tr>
+<tr>
+<td>metadata</td>
+<td>NULL</td>
+<td>可能带（领域、置信度等 JSON）</td>
+</tr>
+</tbody></table>
+<p>所以光看一行的 category 和 metadata 是不是 NULL，就能判断它是”原样埋的”还是”提炼出来的”。一张表同时承载两种粒度的记忆——这是它数据模型上的巧劲。</p>
+<p><strong>第二张表：human_insights（结构化画像）</strong></p>
+<p>这张表跟向量记忆完全相反：全是 typed 列、没有向量、没有 JSON 大 blob。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> engine.human_insights (</span><br><span class="line">    user_id            UUID <span class="keyword">PRIMARY KEY</span>,   <span class="comment">-- 一个用户一行</span></span><br><span class="line">    city               TEXT,</span><br><span class="line">    occupation         TEXT,</span><br><span class="line">    mbti_guess         TEXT,</span><br><span class="line">    love_values        TEXT,</span><br><span class="line">    emotional_needs    TEXT,</span><br><span class="line">    life_rhythm        TEXT,</span><br><span class="line">    education          TEXT,</span><br><span class="line">    family             TEXT,</span><br><span class="line">    relationship_history TEXT,</span><br><span class="line">    interests          TEXT[] <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;&#123;&#125;&#x27;</span>,</span><br><span class="line">    personality_traits TEXT[] <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;&#123;&#125;&#x27;</span>,</span><br><span class="line">    deal_breakers      TEXT[] <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> <span class="string">&#x27;&#123;&#125;&#x27;</span>,</span><br><span class="line">    preferred_gender   TEXT,</span><br><span class="line">    age_min            <span class="type">INT</span>,</span><br><span class="line">    age_max            <span class="type">INT</span>,</span><br><span class="line">    updated_at         TIMESTAMPTZ <span class="keyword">NOT NULL</span> <span class="keyword">DEFAULT</span> now()</span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+
+<p>三个数据模型上的特点：</p>
+<ol>
+<li>一个用户一行（user_id 主键），画像只有”当前状态”，没有历史版本。</li>
+<li>字段强类型：TEXT、TEXT[]、INT。</li>
+<li>数组字段能直接查询（interests 建 GIN 索引，能直接做”兴趣集合重叠”查询）。</li>
+</ol>
+<div class="note info flat"><p>为什么这张表不做成向量？因为它存的是”确定的事实”（职业、城市、兴趣），用精确的字段匹配就够了，不需要”模糊召回”。向量记忆管”想起模糊的旧事”，结构化画像管”回答确定的事实”——两种数据模型各司其职。</p>
+</div>
+
+<p><strong>第三张表：chat_messages（原料）+ chat_sessions（容器）</strong></p>
+<p>chat_messages 是原始聊天记录，是记忆的原料，本身不 embed。chat_sessions 有三个字段专门为”写记忆”服务：</p>
+<ul>
+<li><code>last_active_at</code> —— 判断会话是否空闲、该不该提炼</li>
+<li><code>classified_at</code> —— “已提炼”章，盖了就不重复</li>
+<li><code>classification_claimed_at</code> —— “正在提炼”认领标记，防止多实例抢同一会话</li>
+</ul>
+<p><strong>数据模型的设计哲学</strong></p>
+<table>
+<thead>
+<tr>
+<th>设计</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>一张表用 instance_id 区分两层</td>
+<td>两层共享同一套 schema，只是”归属”不同，省一张表</td>
+</tr>
+<tr>
+<td>向量（模糊）和结构化（精确）分离</td>
+<td>两种检索需求不该硬塞进一种存储</td>
+</tr>
+<tr>
+<td>category&#x2F;metadata 是「渐进式」加出来的</td>
+<td>可空列、不用回填，先上线”原样埋”再慢慢加”提炼+分类”</td>
+</tr>
+<tr>
+<td>metadata 存成不透明 JSONB</td>
+<td>将来 prompt 加字段时不用改表</td>
+</tr>
+<tr>
+<td>user_id 是逻辑外键，session_id 是物理外键</td>
+<td>用户跨系统不建物理 FK；session 同 schema 建 FK 带级联删除</td>
+</tr>
+<tr>
+<td>记忆生命周期绑定在会话上</td>
+<td>会话没了记忆一起没，避免孤儿记忆</td>
+</tr>
+</tbody></table>
+<div class="note primary flat"><p><strong>一句话总结数据模型</strong>：记忆 &#x3D; 一张向量表 companion_memories（用 instance_id 一个字段切成”跨数字人的 profile 层”和”专属的 relationship 层”，用 category&#x2F;metadata 的 NULL 与否区分”原样埋”和”提炼”）+ 一张强类型的画像表 human_insights（确定事实，不向量）。原料在 chat_messages，容器在 chat_sessions。核心思想是：把”模糊召回”和”精确查询”拆成两种完全不同的存储模型，而不是塞进一个大 JSON。</p>
+</div>
+
+<h3 id="4-成本模型"><a href="#4-成本模型" class="headerlink" title="4. 成本模型"></a>4. 成本模型</h3><p><strong>读路径：每轮固定要付的账</strong></p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>次数</th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>embed_query（把当前这句话变向量）</td>
+<td>1 次</td>
+<td>便宜（embedding 远便宜于生成）</td>
+</tr>
+<tr>
+<td>pgvector 语义检索（三路）</td>
+<td>3 次查询</td>
+<td>零外部成本（本地 DB）</td>
+</tr>
+<tr>
+<td>读 human_insights 画像</td>
+<td>1 次</td>
+<td>零外部成本（普通 SQL）</td>
+</tr>
+</tbody></table>
+<p>读路径最大的成本其实是主回复那次 chat LLM，但那是”聊天”不是记忆的成本。记忆本身读路径只花「1 次 embedding」，非常轻。</p>
+<div class="note warning flat"><p><strong>关键点</strong>：读路径的 K 值很小（每类 2、兜底 4、专属 3），所以注入提示词的内容有硬上界，不会因为记忆越攒越多而让 prompt 越来越贵——记忆无限增长，但读的成本不随之增长。</p>
+</div>
+
+<p><strong>写路径：每轮要付的账（在后台，不阻塞）</strong></p>
+<p>每轮付（fire-and-forget）：</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>次数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>embed_document（写 relationship 层）</td>
+<td>1 次</td>
+<td>把”用户：X”变向量</td>
+</tr>
+<tr>
+<td>embed_document（写 profile 层）</td>
+<td>1 次</td>
+<td>把”X”变向量</td>
+</tr>
+<tr>
+<td>affinity 评估 LLM</td>
+<td>1 次</td>
+<td>小模型，短消息跳过</td>
+</tr>
+<tr>
+<td>insight 抽取 LLM</td>
+<td>1–2 次</td>
+<td>两阶段；facts 为空只跑 1 次</td>
+</tr>
+</tbody></table>
+<p>空闲才付（dreaming 提炼）：</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>次数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>memory_extraction LLM</td>
+<td>每会话 1 次</td>
+<td>贵，但只在会话空闲时跑</td>
+</tr>
+<tr>
+<td>embed_document × 候选数</td>
+<td>每条 1 次</td>
+<td>只 embed 挑出的候选，不是全量</td>
+</tr>
+</tbody></table>
+<p><strong>控成本的 8 个设计手段（精华）</strong></p>
+<table>
+<thead>
+<tr>
+<th>手段</th>
+<th>省的是什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>两档节奏：热路径只 embedding，冷路径才 LLM 提炼</td>
+<td>把”理解”这件贵事摊销到空闲时段</td>
+</tr>
+<tr>
+<td>fire-and-forget</td>
+<td>写路径 LLM 不阻塞回复，成本只体现在钱</td>
+</tr>
+<tr>
+<td>小 K + 无阈值</td>
+<td>注入 prompt 的内容有硬上界</td>
+</tr>
+<tr>
+<td>跨层去重</td>
+<td>同一事实只注入一次，少付重复 token</td>
+</tr>
+</tbody></table>
+<h2 id="项目短板"><a href="#项目短板" class="headerlink" title="项目短板"></a>项目短板</h2><h3 id="短板-1：存储只增不减，没有遗忘机制（最大的隐患）"><a href="#短板-1：存储只增不减，没有遗忘机制（最大的隐患）" class="headerlink" title="短板 1：存储只增不减，没有遗忘机制（最大的隐患）"></a>短板 1：存储只增不减，没有遗忘机制（最大的隐患）</h3><div class="note danger flat"><p>整个系统只有 upsert，没有 delete。MemoryRepo 没有删除方法，human_insights 的注释还明写了 “deliberately no erase path”。companion_memories 会随聊天历史线性无限增长——反导流让数据只进不出，这是”机会”也是”炸弹”。</p>
+</div>
+
+<h3 id="短板-2：检索没有「时间-重要性」权重，纯靠相似度"><a href="#短板-2：检索没有「时间-重要性」权重，纯靠相似度" class="headerlink" title="短板 2：检索没有「时间&#x2F;重要性」权重，纯靠相似度"></a>短板 2：检索没有「时间&#x2F;重要性」权重，纯靠相似度</h3><p>检索只按 embedding 余弦距离排序，created_at 存了但从不参与排序。导致：三年前说的”我讨厌猫”和昨天说的”我养了猫”权重一样，谁离查询近谁赢。真实记忆是有”新鲜度”和”重要性”的，这里完全没有。</p>
+<h3 id="短板-3：没有相似度阈值，可能注入无关内容"><a href="#短板-3：没有相似度阈值，可能注入无关内容" class="headerlink" title="短板 3：没有相似度阈值，可能注入无关内容"></a>短板 3：没有相似度阈值，可能注入无关内容</h3><p>“纯 top-K，无阈值，最近的 K 条无条件返回”。好处是 prompt 长度可控，代价是可能召回完全不相关的东西塞进提示词，既浪费 token，又可能干扰数字人。</p>
+<h3 id="短板-4：写入侧不去重，靠读时兜底"><a href="#短板-4：写入侧不去重，靠读时兜底" class="headerlink" title="短板 4：写入侧不去重，靠读时兜底"></a>短板 4：写入侧不去重，靠读时兜底</h3><p>同一句用户的话，每轮既写 profile 层又写 relationship 层，而且每轮都写新行。同一事实会被反复写入几十次，读时才用 prune_recalled 去重。结果：存储冗余膨胀，去重压力全压在读路径。</p>
+<h3 id="短板-5：每轮-embed-两次的浪费"><a href="#短板-5：每轮-embed-两次的浪费" class="headerlink" title="短板 5：每轮 embed 两次的浪费"></a>短板 5：每轮 embed 两次的浪费</h3><p>写路径对同一句话 embed 两次（relationship 层”用户：X” + profile 层”X”）。这是有意的（前缀影响向量语义），但确实每轮多付一次 embedding 成本。</p>
+<h3 id="短板-6：dreaming-是快照式，长会话只提炼一次"><a href="#短板-6：dreaming-是快照式，长会话只提炼一次" class="headerlink" title="短板 6：dreaming 是快照式，长会话只提炼一次"></a>短板 6：dreaming 是快照式，长会话只提炼一次</h3><p>classified_at 盖章后永不重扫。一个聊了三个月的长会话，只在第一次空闲时被提炼一次，之后新出现的长期事实再也不会被提炼（只能靠每轮的原样埋点）。</p>
+<h2 id="启发"><a href="#启发" class="headerlink" title="启发"></a>启发</h2><h3 id="启发-1：重新划「记忆的共享边界」"><a href="#启发-1：重新划「记忆的共享边界」" class="headerlink" title="启发 1：重新划「记忆的共享边界」"></a>启发 1：重新划「记忆的共享边界」</h3><p>这是最重要的一条，直接影响产品体验。建议分三级而不是现在的两级：</p>
+<table>
+<thead>
+<tr>
+<th>级</th>
+<th>谁能访问</th>
+<th>存什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>平台级</td>
+<td>系统&#x2F;推荐引擎</td>
+<td>结构化画像（用于匹配、推荐），数字人不直接当”记得”用</td>
+</tr>
+<tr>
+<td>关系级</td>
+<td>这个用户 × 这个数字人</td>
+<td>对话里学到的所有事，按数字人隔离</td>
+</tr>
+<tr>
+<td>数字人自己的记忆</td>
+<td>只有这个数字人</td>
+<td>它自己的经历、设定、它”主动想记住”的</td>
+</tr>
+</tbody></table>
+<div class="note success flat"><p><strong>核心原则：「平台知道」≠「数字人记得」。</strong> 平台可以用画像做匹配，但数字人绝不能假装它知道没跟它聊过的事。raw-turn 的原文绝不该进平台级。</p>
+<p>同时，对于每一个用户和数字人，也要存储「一个是原文，还有一个是提炼之后的消息」，这样检索起来就方便很多。</p>
+</div>
+
+<h3 id="启发-2：必须有遗忘机制"><a href="#启发-2：必须有遗忘机制" class="headerlink" title="启发 2：必须有遗忘机制"></a>启发 2：必须有遗忘机制</h3><p>记忆系统不能只有 upsert。至少加三层：</p>
+<ul>
+<li><strong>时间衰减</strong>：检索时给记忆加权，越久远的越弱；</li>
+<li><strong>重要性分级</strong>：核心事实（过敏、职业）常驻，琐碎闲聊自然淘汰；</li>
+<li><strong>显式删除路径</strong>：既是合规要求（GDPR），也是产品要求（用户说”忘掉这段”）。</li>
+</ul>
+<h3 id="启发-3：检索要带「时间-重要性」，不能纯相似度"><a href="#启发-3：检索要带「时间-重要性」，不能纯相似度" class="headerlink" title="启发 3：检索要带「时间 + 重要性」，不能纯相似度"></a>启发 3：检索要带「时间 + 重要性」，不能纯相似度</h3><p>纯 top-K + 无阈值，在聊天产品里会召回过时或无关的东西。建议：</p>
+<ul>
+<li>相似度 + 时间衰减 + 重要性三者加权排序；</li>
+<li>加一个软阈值，低于阈值就宁可不注入（”宁缺毋滥”），避免数字人基于无关记忆胡说。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io">szq</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://xiaosuzq.github.io/2026/08/15/eros-engine-layered-memory/">https://xiaosuzq.github.io/2026/08/15/eros-engine-layered-memory/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://xiaosuzq.github.io" target="_blank">SZQ 的技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E8%AE%B0%E5%BF%86%E7%B3%BB%E7%BB%9F/">记忆系统</a><a class="post-meta__tags" href="/tags/eros-engine/">eros-engine</a><a class="post-meta__tags" href="/tags/Rust/">Rust</a></div><div class="post-share"><div class="social-share" data-image="/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/08/15/letta-memory-as-context/" title="让 AI 拥有&quot;自我&quot;,而不只是&quot;记忆&quot; —— Letta 的记忆即上下文"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">让 AI 拥有"自我",而不只是"记忆" —— Letta 的记忆即上下文</div></div><div class="info-2"><div class="info-item-1"> 本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 Letta。  项目定位Letta Code 是一个”让 AI agent 拥有自我”的运行框架（agent runtime）。 注意，不是”给 agent 加记忆”——Claude Code 也有记忆。它的真正主张是：把 agent 的”身份 + 记忆 + 经验”本身，做成一个 agent 自己拥有、可改写、跨时间延续的”自我”。 它到底”新”在哪传统 agent（含 Claude Code）的记忆，主语是”任务&#x2F;用户”；Letta 的记忆，主语是”agent 自己”。 项目范式它代表了一个范式转向，可以用三个关键词概括： 1. 「记忆即上下文」（memory-as-context）主流范式把记忆当外部数据库：历史存向量库，用 RAG 按需捞回来。Letta Code 的范式是：记忆就是”每次醒来看到的上下文”本身，而 agent 可以直接改写这段上下文。 这是最根本的转向：从”给模型加一个记忆数据库”，变成”让模型拥有并改写自己的自我”。它的金句就是那句 “the model is the...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-13</div><div class="info-item-2">dating app记忆系统设计调研</div></div><div class="info-2"><div class="info-item-1">子文章目录本系列调研 dating app 记忆系统的设计，整体结构： 12345dating app记忆系统设计调研（总领篇 · 本文）├── Mem0 ──────── 记忆中间件（见本文正文）├── Graphiti ──── 时序知识图谱（独立子文章）├── Letta ─────── 记忆即上下文（独立子文章）└── eros-engine ─ 分层记忆（独立子文章）   Graphiti走了一遭：时序知识图谱，离”陪聊记忆”还差多远 让 AI 拥有”自我”,而不只是”记忆” —— Letta 的记忆即上下文 eros-engine的分层记忆：让AI记住”人”，而不只是”话”  调研目的 为 dating app 的记忆系统的设计提供参考 学习市面上常见的记忆系统的设计，不同场景下面，记忆系统该如何设计？  Dating app 背景 形态：数字人陪聊 BH（真人）× DH（AI 数字人）。DH 用 LLM 生成”像真人”的回复。  关系养成型 初始是陌生人，聊久了产生感情并配对。时间跨度以月计，不是一次性问答。  反导流（双向） DH 不主动引导用户离开；同时检测并阻...</div></div></div></a><a class="pagination-related" href="/2026/08/13/graphiti-memory-graph/" title="Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-13</div><div class="info-item-2">Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远</div></div><div class="info-2"><div class="info-item-1"> 本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 Graphiti。  项目定位Graphiti &#x3D; LLM 驱动的时序知识图谱引擎，专为 AI Agent 的长期记忆而生：自动从对话&#x2F;数据里抽取实体和关系，增量织成一张带时间、可溯源的知识网，再用”语义 + 关键词 + 图遍历”混合检索取出来喂给 Agent。 知识图谱 vs 传统 RAG核心区别一句话普通 RAG 是”检索文档片段”，Graphiti 是”维护一张随时间演化的知识图谱”。前者回答”哪段文本相关”，后者回答”关于这件事，目前什么是对的、过去发生过什么”。 本质区别对照   维度 普通 RAG Graphiti    存什么 原文切片（chunk）+ 向量 结构化事实（实体→关系→实体）   检索方式 向量相似度（embedding） 语义 + BM25 + 图遍历 三者混合   时间 基本无（数据是静态快照） 每条事实有时间窗口，可查”任意时间点的真值”   更新 重嵌入&#x2F;重建索引（批量） 增量更新，新数据实时融入   冲突处理 新旧版本并存或覆盖 旧事实...</div></div></div></a><a class="pagination-related" href="/2026/08/15/letta-memory-as-context/" title="让 AI 拥有&quot;自我&quot;,而不只是&quot;记忆&quot; —— Letta 的记忆即上下文"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-15</div><div class="info-item-2">让 AI 拥有&quot;自我&quot;,而不只是&quot;记忆&quot; —— Letta 的记忆即上下文</div></div><div class="info-2"><div class="info-item-1"> 本文是《dating app记忆系统设计调研》的子文章，分析对象为开源项目 Letta。  项目定位Letta Code 是一个”让 AI agent 拥有自我”的运行框架（agent runtime）。 注意，不是”给 agent 加记忆”——Claude Code 也有记忆。它的真正主张是：把 agent 的”身份 + 记忆 + 经验”本身，做成一个 agent 自己拥有、可改写、跨时间延续的”自我”。 它到底”新”在哪传统 agent（含 Claude Code）的记忆，主语是”任务&#x2F;用户”；Letta 的记忆，主语是”agent 自己”。 项目范式它代表了一个范式转向，可以用三个关键词概括： 1. 「记忆即上下文」（memory-as-context）主流范式把记忆当外部数据库：历史存向量库，用 RAG 按需捞回来。Letta Code 的范式是：记忆就是”每次醒来看到的上下文”本身，而 agent 可以直接改写这段上下文。 这是最根本的转向：从”给模型加一个记忆数据库”，变成”让模型拥有并改写自己的自我”。它的金句就是那句 “the model is the...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">szq</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">4</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">9</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.</span> <span class="toc-text">项目定位</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E8%8C%83%E5%BC%8F"><span class="toc-number">2.</span> <span class="toc-text">项目范式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%B6%E6%9E%84%E5%BD%A2%E6%80%81%EF%BC%9A%E6%A8%A1%E5%9D%97%E5%8C%96-Monorepo-%E4%B8%A5%E6%A0%BC%E5%90%91%E4%B8%8B%E4%BE%9D%E8%B5%96"><span class="toc-number">2.1.</span> <span class="toc-text">架构形态：模块化 Monorepo + 严格向下依赖</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E6%A0%B8%E5%BF%83%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.</span> <span class="toc-text">项目核心设计</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%86%99%E8%AE%B0%E5%BF%86%E8%BF%87%E7%A8%8B"><span class="toc-number">3.1.</span> <span class="toc-text">1. 写记忆过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E8%AF%BB%E8%AE%B0%E5%BF%86"><span class="toc-number">3.2.</span> <span class="toc-text">2. 读记忆</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%AE%B0%E5%BF%86%E6%A8%A1%E5%9E%8B"><span class="toc-number">3.3.</span> <span class="toc-text">3. 记忆模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E6%88%90%E6%9C%AC%E6%A8%A1%E5%9E%8B"><span class="toc-number">3.4.</span> <span class="toc-text">4. 成本模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%9F%AD%E6%9D%BF"><span class="toc-number">4.</span> <span class="toc-text">项目短板</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-1%EF%BC%9A%E5%AD%98%E5%82%A8%E5%8F%AA%E5%A2%9E%E4%B8%8D%E5%87%8F%EF%BC%8C%E6%B2%A1%E6%9C%89%E9%81%97%E5%BF%98%E6%9C%BA%E5%88%B6%EF%BC%88%E6%9C%80%E5%A4%A7%E7%9A%84%E9%9A%90%E6%82%A3%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">短板 1：存储只增不减，没有遗忘机制（最大的隐患）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-2%EF%BC%9A%E6%A3%80%E7%B4%A2%E6%B2%A1%E6%9C%89%E3%80%8C%E6%97%B6%E9%97%B4-%E9%87%8D%E8%A6%81%E6%80%A7%E3%80%8D%E6%9D%83%E9%87%8D%EF%BC%8C%E7%BA%AF%E9%9D%A0%E7%9B%B8%E4%BC%BC%E5%BA%A6"><span class="toc-number">4.2.</span> <span class="toc-text">短板 2：检索没有「时间&#x2F;重要性」权重，纯靠相似度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-3%EF%BC%9A%E6%B2%A1%E6%9C%89%E7%9B%B8%E4%BC%BC%E5%BA%A6%E9%98%88%E5%80%BC%EF%BC%8C%E5%8F%AF%E8%83%BD%E6%B3%A8%E5%85%A5%E6%97%A0%E5%85%B3%E5%86%85%E5%AE%B9"><span class="toc-number">4.3.</span> <span class="toc-text">短板 3：没有相似度阈值，可能注入无关内容</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-4%EF%BC%9A%E5%86%99%E5%85%A5%E4%BE%A7%E4%B8%8D%E5%8E%BB%E9%87%8D%EF%BC%8C%E9%9D%A0%E8%AF%BB%E6%97%B6%E5%85%9C%E5%BA%95"><span class="toc-number">4.4.</span> <span class="toc-text">短板 4：写入侧不去重，靠读时兜底</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-5%EF%BC%9A%E6%AF%8F%E8%BD%AE-embed-%E4%B8%A4%E6%AC%A1%E7%9A%84%E6%B5%AA%E8%B4%B9"><span class="toc-number">4.5.</span> <span class="toc-text">短板 5：每轮 embed 两次的浪费</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%AD%E6%9D%BF-6%EF%BC%9Adreaming-%E6%98%AF%E5%BF%AB%E7%85%A7%E5%BC%8F%EF%BC%8C%E9%95%BF%E4%BC%9A%E8%AF%9D%E5%8F%AA%E6%8F%90%E7%82%BC%E4%B8%80%E6%AC%A1"><span class="toc-number">4.6.</span> <span class="toc-text">短板 6：dreaming 是快照式，长会话只提炼一次</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%90%AF%E5%8F%91"><span class="toc-number">5.</span> <span class="toc-text">启发</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8F%91-1%EF%BC%9A%E9%87%8D%E6%96%B0%E5%88%92%E3%80%8C%E8%AE%B0%E5%BF%86%E7%9A%84%E5%85%B1%E4%BA%AB%E8%BE%B9%E7%95%8C%E3%80%8D"><span class="toc-number">5.1.</span> <span class="toc-text">启发 1：重新划「记忆的共享边界」</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8F%91-2%EF%BC%9A%E5%BF%85%E9%A1%BB%E6%9C%89%E9%81%97%E5%BF%98%E6%9C%BA%E5%88%B6"><span class="toc-number">5.2.</span> <span class="toc-text">启发 2：必须有遗忘机制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8F%91-3%EF%BC%9A%E6%A3%80%E7%B4%A2%E8%A6%81%E5%B8%A6%E3%80%8C%E6%97%B6%E9%97%B4-%E9%87%8D%E8%A6%81%E6%80%A7%E3%80%8D%EF%BC%8C%E4%B8%8D%E8%83%BD%E7%BA%AF%E7%9B%B8%E4%BC%BC%E5%BA%A6"><span class="toc-number">5.3.</span> <span class="toc-text">启发 3：检索要带「时间 + 重要性」，不能纯相似度</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/15/eros-engine-layered-memory/" title="eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot;">eros-engine的分层记忆：让AI记住&quot;人&quot;，而不只是&quot;话&quot;</a><time datetime="2026-08-15T04:00:00.000Z" title="发表于 2026-08-15 12:00:00">2026-08-15</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/15/letta-memory-as-context/" title="让 AI 拥有&quot;自我&quot;,而不只是&quot;记忆&quot; —— Letta 的记忆即上下文">让 AI 拥有&quot;自我&quot;,而不只是&quot;记忆&quot; —— Letta 的记忆即上下文</a><time datetime="2026-08-15T02:00:00.000Z" title="发表于 2026-08-15 10:00:00">2026-08-15</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/graphiti-memory-graph/" title="Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远">Graphiti走了一遭:时序知识图谱,离&quot;陪聊记忆&quot;还差多远</a><time datetime="2026-08-13T09:30:00.000Z" title="发表于 2026-08-13 17:30:00">2026-08-13</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/08/13/dating-app-memory-system/" title="dating app记忆系统设计调研">dating app记忆系统设计调研</a><time datetime="2026-08-13T08:30:00.000Z" title="发表于 2026-08-13 16:30:00">2026-08-13</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By szq</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.2</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.7.0"></script><script src="/js/main.js?v=5.7.0"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
